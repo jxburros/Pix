@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pix-engine"
+version = "0.6.0"
+description = "A programmable image-document engine for humans, scripts, and AI agents"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["Pillow>=11.3,<13", "numpy>=2.0,<3", "httpx>=0.28,<1", "filelock>=3.16,<4", "jsonschema>=4.23,<5"]
+
+[project.optional-dependencies]
+server = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1"]
+mcp = ["mcp>=1.12,<2"]
+dev = ["pytest>=8,<10", "fastapi>=0.115,<1", "uvicorn>=0.30,<1", "mcp>=1.12,<2", "ruff>=0.12"]
+
+[project.scripts]
+pix = "pix.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pix"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
