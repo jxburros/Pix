@@ -1,0 +1,9 @@
+{
+  "operations": [
+    {"type": "solid", "name": "card", "width": 420, "height": 240, "color": "#233657"},
+    {"type": "align", "target": "card", "alignment": "center"},
+    {"type": "text", "name": "title", "text": "Made with Pix", "size": 48, "color": "#f8edda"},
+    {"type": "align", "target": "title", "alignment": "center"},
+    {"type": "constrain", "target": "title", "constraints": {"center-x": "canvas.center-x", "center-y": "canvas.center-y"}}
+  ]
+}

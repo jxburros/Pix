@@ -1,0 +1,5 @@
+# Uses the current layer. No external models or shell execution.
+brightness +4
+contrast +8
+saturation -3
+sharpen 1.2
