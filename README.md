@@ -10,9 +10,31 @@ This initial implementation covers the specification's core editor and automatio
 
 [Download the editable example](examples/after-hours.pix), or rebuild it with `python examples/build_poster.py`.
 
-## Install
+## Install on Windows
 
-Requires Python 3.11 or newer. No graphical display is needed.
+Download **Pix-Setup-0.7.0-windows-x64.exe** from [GitHub Releases](https://github.com/jxburros/Pix/releases/latest) and run it. The installer bundles Python and the REST/MCP dependencies, installs for your Windows account without administrator access, and adds `pix` to your user PATH. Completely close and reopen your terminal application after installation:
+
+```text
+pix --version
+pix --help
+```
+
+Automatic updates are on by default. When you launch Pix, it checks GitHub at most once a day in the background. A verified update is staged alongside the current version and activated on a subsequent launch. Existing editing sessions continue using their original runtime. Project files and AI credentials are not part of the installation.
+
+```text
+pix update --check
+pix update
+pix updates status
+pix updates off
+pix updates on
+pix update --rollback
+```
+
+`pix update` stages an update for the next launch. Rollback selects the previous installed version and turns off automatic updates. [Installation, updates, and release instructions](docs/releases.md) explain migration from a pip install, rollback, and reproducible automation.
+
+## Install with Python / develop from source
+
+Requires Python 3.11 or newer. No graphical display is needed. This method uses pip-managed updates rather than the Windows automatic updater.
 
 ```bash
 git clone https://github.com/jxburros/Pix.git

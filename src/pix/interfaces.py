@@ -117,7 +117,7 @@ def create_app(path, *, token=None, limits=None):
     except ImportError as exc:
         raise PixError("missing_dependency", "Install pix-engine[server]") from exc
     session = Session(path, limits)
-    app = FastAPI(title="Pix Engine", version="0.6.0")
+    app = FastAPI(title="Pix Engine", version="0.7.0")
     if not token:
         app.add_middleware(
             TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver"]

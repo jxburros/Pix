@@ -1,6 +1,6 @@
 # Specification coverage
 
-This is a working first implementation spanning the six roadmap stages in the supplied [specification](product-spec.md). It is not a claim of production maturity or complete GIMP parity. The package version is 0.6.0 to identify that feature scope; future work remains below.
+This is a working first implementation spanning the six roadmap stages in the supplied [specification](product-spec.md). It is not a claim of production maturity or complete GIMP parity. Version 0.7.0 adds Windows installation, GitHub releases, and automatic updates to that feature scope; future work remains below.
 
 | Specification area | Implemented |
 | --- | --- |
@@ -15,7 +15,7 @@ This is a working first implementation spanning the six roadmap stages in the su
 ## Explicit boundaries
 
 - **AI needs a real configured service.** Vision segmentation and background removal require a mask-producing HTTP/ComfyUI provider. OpenAI provides multimodal description/detection/OCR and planning, not a native segmentation implementation here. Live provider calls were not exercised in the development environment. Mocked adapter tests validate request/response behavior, not model quality.
-- **The core is Python**, not Rust. No C ABI, standalone native executable, or optimized tile/GPU renderer is supplied.
+- **The core is Python**, not Rust. A Windows executable bundles the Python runtime. No C ABI, Rust core, or optimized tile/GPU renderer is supplied.
 - **RGBA8/sRGB-style pixel processing.** No ICC-managed workflow, CMYK prepress, high-bit-depth editing, RAW development, or embedded camera metadata preservation. Input orientation is normalized. AVIF availability depends on Pillow's codecs.
 - **Raster-oriented layers.** Solid/linear-gradient helpers and text are included. SVG/vector illustration, grouped layers, skew/perspective/matrix transforms, brushes, pressure input, animation, and PSD/XCF compatibility are not implemented.
 - **Basic text layout.** Editable multiline text, alignment, spacing, stroke and font embedding are present. No automatic wrapping or advanced publishing/typography engine.

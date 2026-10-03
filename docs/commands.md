@@ -2,6 +2,20 @@
 
 Global options can appear before or after the command: `--project FILE` / `-p FILE`, `--json`, `--allow-linked`, `--plugins`, `--max-pixels N`, `--version`. The default project is stored in the current directory's `.pix-session.json`. Use explicit paths in CI and concurrent workflows. `pix COMMAND --help` prints syntax for editing commands.
 
+## Installed application updates
+
+For the Windows installer edition, these commands work without an open project:
+
+| Command | Behavior |
+| --- | --- |
+| `update --check` | Check for a newer published stable release without downloading the runtime |
+| `update` | Download, verify and stage the latest stable runtime for the next launch |
+| `updates status` | Show current/previous/pending version, automatic-update setting and last error |
+| `updates off` / `updates on` | Persist the preference; off also clears a queued activation |
+| `update --rollback` | Select the previous runtime for future launches and turn automatic updates off |
+
+Set `PIX_NO_UPDATE=1` to suppress both automatic checks and pending activation for a process (useful in CI). Python/pip installations are never modified by this updater. See [releases](releases.md).
+
 ## Documents and output
 
 | Command | Behavior |

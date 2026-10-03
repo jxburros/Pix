@@ -46,6 +46,7 @@ Output:    export FILE [--quality N] [--scale 2x] [--profile NAME],
 AI:        ask PROMPT [--apply], generate --prompt TEXT --provider NAME,
            detect objects|faces, ocr, ai describe|info|regenerate|background-remove|upscale|extend,
            select object LABEL --provider NAME
+Updates:   update [--check | --rollback], updates [on | off | status]
 Services:  serve [--host 127.0.0.1] [--port 8765], mcp
 
 Options: --project/-p FILE, --json, --allow-linked, --plugins, --max-pixels N, --version
@@ -132,6 +133,30 @@ def dispatch(argv):
     limits = Limits(max_pixels=options.max_pixels)
     tokens = normalize(tokens) if tokens[0] != "text" else tokens
     cmd, args = tokens[0], tokens[1:]
+    if cmd in ("update", "updates"):
+        from . import updater
+
+        p = Parser(prog=f"pix {cmd}")
+        if cmd == "update":
+            flags = p.add_mutually_exclusive_group()
+            flags.add_argument("--check", action="store_true")
+            flags.add_argument("--rollback", action="store_true")
+        else:
+            p.add_argument("action", nargs="?", choices=["on", "off", "status"], default="status")
+        a = p.parse_args(args)
+        try:
+            root = updater.root_path()
+            if cmd == "updates":
+                return (
+                    updater.status(root)
+                    if a.action == "status"
+                    else updater.preference(root, a.action == "on")
+                ), options.json
+            return (
+                updater.rollback(root) if a.rollback else updater.update(root, check_only=a.check)
+            ), options.json
+        except updater.UpdateError as exc:
+            raise PixError("update_error", str(exc)) from exc
     if cmd == "new":
         p = Parser(prog="pix new")
         p.add_argument("size")
