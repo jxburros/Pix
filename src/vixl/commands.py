@@ -6,7 +6,7 @@ import shlex
 from pathlib import Path
 
 from .errors import VixlError, require
-from .constants import EFFECTS
+from .constants import ARTISTIC_DEFAULTS, EFFECTS
 
 
 class Parser(argparse.ArgumentParser):
@@ -159,9 +159,20 @@ def compile_command(tokens):
         p.add_argument("--seed", type=int)
         p.add_argument("--radius", type=float)
         p.add_argument("--strength", type=float)
+        p.add_argument("--shadow-color")
+        p.add_argument("--highlight-color")
         data = vars(p.parse_args(args))
         values = data.pop("values")
-        if cmd in ("grayscale", "invert", "auto-tone", "auto-color", "auto-contrast"):
+        if cmd in ARTISTIC_DEFAULTS:
+            require(len(values) <= 2, "Expected [LAYER] [VALUE]")
+            if len(values) == 2:
+                data["target"], data["value"] = values[0], float(values[1])
+            elif values:
+                try:
+                    data["value"] = float(values[0])
+                except ValueError:
+                    data["target"] = values[0]
+        elif cmd in ("grayscale", "invert", "auto-tone", "auto-color", "auto-contrast"):
             require(len(values) <= 1, "Expected optional layer")
             if values:
                 data["target"] = values[0]
@@ -241,6 +252,8 @@ def compile_command(tokens):
         for key in ("amount", "radius", "strength", "black", "white"):
             p.add_argument(f"--{key}", type=float)
         p.add_argument("--seed", type=int)
+        p.add_argument("--shadow-color")
+        p.add_argument("--highlight-color")
         data = {k: v for k, v in vars(p.parse_args(args)).items() if v is not None}
         if data["name"] in ("blur", "gaussian-blur") and "radius" in data:
             data["amount"] = data.pop("radius")
@@ -249,7 +262,11 @@ def compile_command(tokens):
         p.add_argument("action", choices=["disable", "enable", "remove", "set"])
         p.add_argument("target")
         p.add_argument("effect")
-        p.add_argument("--amount", type=float)
+        for key in ("amount", "radius", "strength", "black", "white"):
+            p.add_argument(f"--{key}", type=float)
+        p.add_argument("--seed", type=int)
+        p.add_argument("--shadow-color")
+        p.add_argument("--highlight-color")
         data = vars(p.parse_args(args))
         action = data.pop("action")
         return {"type": f"effect-{action}", **{k: v for k, v in data.items() if v is not None}}

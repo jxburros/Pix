@@ -8,13 +8,13 @@ dynamic = ["version"]
 description = "A headless image-document engine designed for autonomous AI agents"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["Pillow>=11.3,<13", "numpy>=2.0,<3", "httpx>=0.28,<1", "filelock>=3.16,<4", "jsonschema>=4.23,<5", "fonttools>=4.59,<5"]
+dependencies = ["Pillow>=11.3,<13", "numpy>=2.0,<3", "httpx>=0.28,<1", "filelock>=3.16,<4", "jsonschema>=4.23,<5", "fonttools>=4.59,<5", "uharfbuzz>=0.52,<1", "python-bidi>=0.6.6,<1", "resvg-py>=0.5,<1"]
 
 [project.optional-dependencies]
 server = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1"]
 mcp = ["mcp>=1.12,<2"]
 anthropic = ["anthropic>=1.11,<2"]
-dev = ["pytest>=8,<10", "fastapi>=0.115,<1", "uvicorn>=0.30,<1", "mcp>=1.12,<2", "anthropic>=1.11,<2", "ruff>=0.12", "resvg-py>=0.5,<1"]
+dev = ["pytest>=8,<10", "fastapi>=0.115,<1", "uvicorn>=0.30,<1", "mcp>=1.12,<2", "anthropic>=1.11,<2", "ruff>=0.12"]
 
 [project.scripts]
 vixl = "vixl.cli:main"

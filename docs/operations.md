@@ -37,7 +37,7 @@ Common operation fields:
 | constrain | target, constraints object |
 | select | shape, shape-specific coordinates/color/target/asset; mode, feather |
 | mask | target, action; path for import |
-| effect | target, name, amount; seed, radius, strength, black/white, points |
+| effect | target, name, amount; seed, radius, strength, black/white, points, shadow_color/highlight_color |
 | effect-set / enable / disable / remove | target, effect ID or 1-based index; amount etc. for set |
 | variable | name, value; or delete: true |
 | preset-save / preset-apply | name, target; overrides for apply |
@@ -53,7 +53,7 @@ The manifest stores current state, stable object IDs, the history DAG (each revi
 
 Rendering resolves variables and acyclic layout constraints, loads source layers, crops/resizes/flips/rotates, applies effects with their captured selection masks, applies the layer mask and opacity, then composites bottom-to-top. Raster sources and text stay editable. Layer masks are defined in transformed local bounds; effect selections are defined in canvas coordinates. These conventions are explicit so scripts can reason about moving a selected/filtered layer.
 
-Default text size tracks the text's rendered bounds. Explicit resize turns off automatic sizing; editing text turns it back on. Imported fonts are embedded. The bundled default font makes basic text independent of host font installation. Exact raster output can still vary with Pillow/FreeType versions; pin your environment for reproducible builds.
+Default text size tracks the text's rendered bounds. Explicit resize turns off automatic sizing; editing text turns it back on. Imported fonts are embedded. PNG/SVG share HarfBuzz shaping and outlined glyph layout, rendered through resvg for pixel output; see [artistic filters and SVG policies](artistic-filters.md). The bundled default font makes supported text independent of host font installation. Pin font and imaging-library versions for reproducible builds.
 
 History is state-based (deltas plus periodic snapshots), not a replay engine. Undo, checkpoints, branching and comparison use captured state and assets. AI replay is a separate network operation and may vary with provider/model revisions even when a seed is retained.
 

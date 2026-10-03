@@ -336,6 +336,7 @@ def create_app(path, *, token=None, limits=None):
             "comp",
             "sampling",
             "profile",
+            "svg_policy",
         }
         require(set(body) <= allowed, "Unknown export option")
         fmt = body.get("format", "PNG").upper()

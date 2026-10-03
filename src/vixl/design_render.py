@@ -88,6 +88,15 @@ def shape_image(project, layer):
 
 
 def text_image(project, layer):
+    from .text import render_text, UnsupportedText
+
+    try:
+        return render_text(project, layer)
+    except UnsupportedText:
+        return legacy_text_image(project, layer)
+
+
+def legacy_text_image(project, layer):
     from .render import font_for, text_metrics, color
 
     settings = layer.get("text_layout", {})

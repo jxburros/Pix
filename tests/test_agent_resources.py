@@ -1,5 +1,4 @@
 import asyncio
-import base64
 from copy import deepcopy
 from io import BytesIO
 import json
@@ -75,7 +74,7 @@ def test_editable_bezier_path_resize_roundtrip_and_atomic_rejection(tmp_path):
     assert p.state == before
 
 
-def test_transparent_png_jpeg_background_and_svg_raster_fallback():
+def test_transparent_png_jpeg_background_and_native_svg_blur():
     p = Project(20, 20)
     p.apply({"type": "shape", "shape": "rectangle", "width": 10, "height": 10, "fill": "red"})
     with Image.open(BytesIO(p.export(format="PNG"))) as image:
@@ -84,10 +83,8 @@ def test_transparent_png_jpeg_background_and_svg_raster_fallback():
         assert image.mode == "RGB" and image.getpixel((19, 19))[2] > 240
     p.apply({"type": "blur", "value": 1})
     root = ET.fromstring(p.export(format="SVG"))
-    image = root.find(".//{*}image")
-    assert image is not None
-    data = base64.b64decode(image.attrib["href"].split(",", 1)[1])
-    assert data.startswith(b"\x89PNG")
+    assert root.find(".//{*}image") is None
+    assert root.find(".//{*}feGaussianBlur").attrib["stdDeviation"] == "1"
 
 
 def test_resources_custom_templates_guidance_and_undo(tmp_path):

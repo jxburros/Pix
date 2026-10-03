@@ -2,7 +2,6 @@
 
 import base64
 from copy import deepcopy
-import io
 import json
 import math
 import xml.etree.ElementTree as ET
@@ -11,7 +10,9 @@ from .assets import png_bytes
 from .design import resolve_color
 from .design_render import artboard_project
 from .geometry import shape_path
-from .render import color, font_for, layer_image, render, resolved_layers, resolve_layout, text_metrics
+from .render import color, layer_image, render, resolved_layers, resolve_layout
+from .errors import VixlError
+from .svg_effects import supported, native_styles, effect_filter, style_filter
 
 NS = "http://www.w3.org/2000/svg"
 ET.register_namespace("", NS)
@@ -45,27 +46,7 @@ def styles(layer):
 
 
 def vector_overlay(layer, state):
-    """Full-strength opaque overlays preserve a vector silhouette exactly."""
-    active = styles(layer)
-    if not active:
-        return True
-    if set(active) - {"gradient-overlay", "color-overlay"}:
-        return False
-    for name, settings in active.items():
-        if settings.get("opacity", 1) != 1:
-            return False
-        values = (
-            (
-                [s["color"] for s in settings["stops"]]
-                if settings.get("stops")
-                else [settings.get("start", "black"), settings.get("end", "white")]
-            )
-            if name == "gradient-overlay"
-            else [settings.get("color", "white")]
-        )
-        if any(color(resolve_color(value, state))[3] != 255 for value in values):
-            return False
-    return True
+    return native_styles(layer, state)
 
 
 class Exporter:
@@ -80,6 +61,7 @@ class Exporter:
         self.defs = node(root, "defs")
         self.counter = 0
         self.fallbacks = []
+        self.text_reasons = {}
 
     def ident(self, prefix):
         self.counter += 1
@@ -87,7 +69,7 @@ class Exporter:
 
     def visible(self, layer):
         while layer:
-            if not layer["visible"]:
+            if not layer["visible"] or layer["opacity"] == 0:
                 return False
             layer = self.index.get(layer.get("parent"))
         return True
@@ -148,63 +130,23 @@ class Exporter:
             node(nested, "path", d=path, **attrs)
 
     def text(self, parent, layer):
-        """Outline plain Latin wordmarks: portable, no installed fonts required."""
-        from fontTools.pens.svgPathPen import SVGPathPen
-        from fontTools.pens.transformPen import TransformPen
-        from fontTools.ttLib import TTFont, TTLibError
+        from .text import plan, append_paths, UnsupportedText
 
-        text = layer["text"]
-        # Complex shaping, ligatures and text layout retain their faithful raster
-        # appearance rather than exporting a misleading sequence of glyphs.
-        if (
-            layer.get("text_layout")
-            or any(ord(c) < 32 or ord(c) > 126 for c in text)
-            or any(pair in text for pair in ("fi", "fl", "ff"))
-        ):
-            return False
-        font = font_for(self.project, layer)
-        source = self.project.assets.get(layer.get("font"))
-        source = io.BytesIO(source) if source is not None else font.path
         try:
-            with TTFont(source) as outline:
-                cmap = outline.getBestCmap()
-                if any(ord(c) not in cmap for c in text):
-                    return False
-                glyphs = outline.getGlyphSet()
-                factor = layer["size"] / outline["head"].unitsPerEm
-                tw, th, box = text_metrics(self.project, layer)
-                group = node(parent, "g", transform=f"scale({layer['width'] / tw} {layer['height'] / th})")
-                fill, alpha = paint(layer.get("color", "white"), self.project.state)
-                stroke, sa = paint(layer.get("stroke_color", "black"), self.project.state)
-                baseline = font.getmetrics()[0] - box[1]
-                cursor = 0
-                for i, char in enumerate(text):
-                    x = cursor - box[0]
-                    pen = SVGPathPen(glyphs)
-                    transformed = TransformPen(pen, (factor, 0, 0, -factor, x, baseline))
-                    glyphs[cmap[ord(char)]].draw(transformed)
-                    path = pen.getCommands()
-                    if path:
-                        node(
-                            group,
-                            "path",
-                            d=path,
-                            fill=fill,
-                            fill_opacity=alpha,
-                            stroke=stroke,
-                            stroke_opacity=sa if layer.get("stroke_width", 0) else 0,
-                            stroke_width=2 * layer.get("stroke_width", 0),
-                            paint_order="stroke fill",
-                        )
-                    # Pair kerning keeps plain wordmarks aligned with Pillow
-                    # without repeatedly shaping an ever-growing prefix.
-                    cursor += (
-                        font.getlength(char + text[i + 1]) - font.getlength(text[i + 1])
-                        if i + 1 < len(text)
-                        else font.getlength(char)
-                    )
-                return True
-        except (OSError, ValueError, KeyError, TTLibError):
+            layout = plan(self.project, layer)
+            nested = node(
+                parent,
+                "svg",
+                width=layer["width"],
+                height=layer["height"],
+                viewBox=f"0 0 {layout.width} {layout.height}",
+                preserveAspectRatio="none",
+                overflow="hidden",
+            )
+            append_paths(nested, layout, layer, self.project)
+            return True
+        except UnsupportedText as exc:
+            self.text_reasons[layer["id"]] = str(exc)
             return False
 
     def gradient(self, settings, box):
@@ -364,15 +306,50 @@ class Exporter:
         return True
 
     def layer(self, parent, layer):
-        if not layer["visible"]:
+        if not layer["visible"] or layer["opacity"] == 0:
+            return
+        if layer["type"] == "adjustment":
+            parent_layer = self.index.get(layer.get("parent"))
+            w, h = (
+                (parent_layer["content_width"], parent_layer["content_height"])
+                if parent_layer
+                else (self.project.state["canvas"]["width"], self.project.state["canvas"]["height"])
+            )
+            previous = list(parent)
+            wrapper = node(parent, "g", filter=effect_filter(self, layer["effects"], (0, 0, w, h)))
+            for child in previous:
+                if child is not self.defs:
+                    parent.remove(child)
+                    wrapper.append(child)
             return
         b = self.bounds[layer["id"]]
-        simple = not any(layer.get(k) for k in ("mask", "effects", "clip", "repeat", "lookup"))
+        simple = (
+            not (layer.get("mask") and layer["mask"].get("enabled", True))
+            and not any(layer.get(k) for k in ("repeat", "lookup"))
+            and supported(layer)
+            and vector_overlay(layer, self.project.state)
+        )
         group = ET.Element(f"{{{NS}}}g", {"opacity": str(layer["opacity"]), "data-layer": layer["name"]})
         geometry = node(group, "g", transform=self.transform(layer, b))
         if simple and self.geometry(geometry, layer):
+            effects = [dict(e) for e in layer.get("effects", []) if e.get("enabled", True)]
+            if effects:
+                from PIL import ImageStat, ImageOps
+
+                for index, effect in enumerate(effects):
+                    if effect["name"] == "contrast":
+                        image = layer_image(
+                            self.project, {**layer, "effects": effects[:index], "styles": {}, "opacity": 1}, b
+                        )
+                        effect["_mean"] = (
+                            round(ImageStat.Stat(ImageOps.grayscale(image.convert("RGB"))).mean[0]) / 255
+                        )
+                wrapper = node(group, "g", filter=effect_filter(self, effects, b))
+                group.remove(geometry)
+                wrapper.append(geometry)
+                geometry = wrapper
             overlay = styles(layer)
-            if overlay:
+            if "gradient-overlay" in overlay:
                 alpha = layer_image(self.project, {**layer, "styles": {}, "opacity": 1}, b).getchannel("A")
                 box = alpha.getbbox()
                 if box:
@@ -398,15 +375,65 @@ class Exporter:
                         else paint(overlay["color-overlay"].get("color", "white"), self.project.state)[0]
                     )
                     node(group, "rect", x=x, y=y, width=w, height=h, fill=fill, mask=f"url(#{ident})")
-            parent.append(group)
+            appearance = style_filter(self, layer, b)
+            if layer.get("clip"):
+                ident = self.ident("clip-mask")
+                mask = node(
+                    self.defs,
+                    "mask",
+                    id=ident,
+                    maskUnits="userSpaceOnUse",
+                    x=0,
+                    y=0,
+                    width=self.project.state["canvas"]["width"],
+                    height=self.project.state["canvas"]["height"],
+                    mask_type="alpha",
+                )
+                self.layer(mask, self.index[layer["clip"]])
+                # Clip after styles, before overall layer opacity.
+                wrapper = ET.Element(
+                    f"{{{NS}}}g", {"opacity": group.attrib.pop("opacity"), "mask": f"url(#{ident})"}
+                )
+                wrapper.append(group)
+                if appearance:
+                    group.set("filter", appearance)
+                parent.append(wrapper)
+            elif appearance:
+                group.set("filter", appearance)
+                # Vixl applies opacity after layer styles.
+                opacity = group.attrib.pop("opacity")
+                outer = node(parent, "g", opacity=opacity)
+                outer.append(group)
+            else:
+                parent.append(group)
         else:
-            bitmap(parent, layer_image(self.project, layer, b), b[0], b[1])
+            if layer.get("styles") or layer.get("clip"):
+                from .render import layer_surface
+
+                parent_layer = self.index.get(layer.get("parent"))
+                size = (
+                    (parent_layer["content_width"], parent_layer["content_height"])
+                    if parent_layer
+                    else (self.project.state["canvas"]["width"], self.project.state["canvas"]["height"])
+                )
+                bitmap(parent, layer_surface(self.project, layer, self.bounds, size, self.index))
+            else:
+                bitmap(parent, layer_image(self.project, layer, b), b[0], b[1])
             self.fallbacks.append(
-                {"layer": layer["name"], "reason": "unsupported vector appearance or text shaping"}
+                {
+                    "layer": layer["name"],
+                    "reason": self.text_reasons.get(layer["id"], "unsupported vector appearance"),
+                    "effects": [
+                        e["name"]
+                        for e in layer.get("effects", [])
+                        if e.get("enabled", True) and (not supported({"effects": [e]}))
+                    ],
+                    "styles": list(styles(layer)) if not native_styles(layer, self.project.state) else [],
+                }
             )
 
 
-def export_svg(project, *, scale=1, variables=None, artboard=None, comp=None):
+def export_svg(project, *, scale=1, variables=None, artboard=None, comp=None, svg_policy="appearance"):
     candidate = artboard_project(project, artboard, comp, variables)
     c = candidate.state["canvas"]
     root = ET.Element(
@@ -418,20 +445,34 @@ def export_svg(project, *, scale=1, variables=None, artboard=None, comp=None):
         },
     )
     exporter = Exporter(candidate, root)
-    flatten = any(
-        exporter.visible(item)
-        and (
-            item["type"] == "adjustment"
-            or item["blend"] != "normal"
-            or item.get("clip")
-            or not vector_overlay(item, candidate.state)
-        )
+    backdrop = [
+        item
         for item in exporter.layers
-    )
-    if flatten:
+        if exporter.visible(item)
+        and (
+            item["blend"] != "normal"
+            or (
+                item["type"] == "adjustment"
+                and (
+                    not supported(item)
+                    or item["opacity"] != 1
+                    or item.get("mask")
+                    or item.get("lookup")
+                    or item.get("clip")
+                    or any(e["name"] == "contrast" and e.get("enabled", True) for e in item["effects"])
+                )
+            )
+        )
+    ]
+    if backdrop:
         bitmap(root, render(candidate))
-        exporter.fallbacks.append(
-            {"layer": "document", "reason": "backdrop-dependent blend, clipping, or raster style"}
+        exporter.fallbacks.extend(
+            {
+                "layer": item["name"],
+                "reason": "backdrop-dependent blend or adjustment requires document rasterization",
+                "effects": [e["name"] for e in item.get("effects", []) if e.get("enabled", True)],
+            }
+            for item in backdrop
         )
     else:
         fill, alpha = paint(c["background"], candidate.state)
@@ -440,5 +481,11 @@ def export_svg(project, *, scale=1, variables=None, artboard=None, comp=None):
         for layer in exporter.children.get(None, []):
             exporter.layer(root, layer)
     if exporter.fallbacks:
+        if svg_policy == "strict":
+            raise VixlError(
+                "svg_raster_required",
+                "SVG requires raster content; see fallback details",
+                fallbacks=exporter.fallbacks,
+            )
         node(root, "metadata").text = json.dumps({"vixl": {"raster_fallbacks": exporter.fallbacks}})
     return ET.tostring(root, encoding="utf-8", xml_declaration=True)

@@ -84,7 +84,7 @@ vixl text title --stroke-width 2 --stroke-color black
 vixl rasterize title
 ```
 
-Text remains editable until rasterized. Custom `--font /path/to/font.ttf` imports and embeds a font. Other font names use Pillow's system-font lookup. Font substitution is never silent. Multiline text is supported; text wrapping, shaping guarantees for every script, and font-family style resolution are not implemented.
+Text remains editable until rasterized. Custom `--font /path/to/font.ttf` imports and embeds a font. Other font names use Pillow's system-font lookup. Font substitution is never silent. HarfBuzz shaping and shared PNG/SVG outlines support ligatures, combining marks and scripts covered by the selected font, with multiline text, wrapping/fitting and path/warp layouts. Bitmap/color fonts and unsupported Unicode isolate controls retain appearance fallbacks. See [local artistic filters and SVG policies](artistic-filters.md).
 
 ## Selections, masks, effects
 

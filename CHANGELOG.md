@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.0
+- Add 19 local, editable artistic filters: sepia, duotone, solarize, pixelate, halftone, crosshatch, ink-blot, stamp, photocopy, pencil-sketch, charcoal, find-edges, emboss, oil-paint, watercolor, swirl, ripple, wave and glass. No AI provider/model is used; seeded treatments are repeatable.
+- Share HarfBuzz shaping, bidi/script runs, layout and outlined glyph geometry between PNG and SVG, including ligatures, combining characters, supported Unicode scripts, wrapping/fitting, multiline/path text and warp presets. Outline rendering can slightly change text spacing/antialiasing from earlier versions.
+- Keep common color adjustments, blur, drop shadow, glow, stroke, color overlays, vector clipping and supported adjustment layers native in SVG. Preserve unaffected vector layers around unsupported raster appearances.
+- Add strict SVG export policy through CLI, Python, REST and MCP, with responsible layer/effect details and no output overwrite on rejection. SVG filters are allowed; bitmap sources and unsupported appearances remain explicit limitations.
+- Add visual/filter/history/parameter regression tests and frozen Windows checks for the new shaping and rendering dependencies.
+
 ## 0.11.1
 - Fix Windows CLI normalization/Unicode response encoding, including frozen executables and redirected output; successful saved edits no longer fail while printing normalization notes.
 - Correct native SVG rotation to use the same clockwise direction as PNG.
