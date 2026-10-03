@@ -47,7 +47,7 @@ AI:        ask PROMPT [--apply], generate --prompt TEXT --provider NAME,
            detect objects|faces, ocr, ai describe|info|regenerate|background-remove|upscale|extend,
            select object LABEL --provider NAME
 Updates:   update [--check | --rollback], updates [on | off | status]
-Services:  serve [--host 127.0.0.1] [--port 8765], mcp
+Services:  serve [--host 127.0.0.1] [--port 8765], mcp [--workspace DIR]
 
 Options: --project/-p FILE, --json, --allow-linked, --plugins, --max-pixels N, --version
 Use pix COMMAND --help for editing command arguments. See docs/commands.md.
@@ -203,19 +203,26 @@ def dispatch(argv):
         options.project = args.pop(0)
     if cmd == "validate" and args and args[0].endswith(".pix"):
         options.project = args.pop(0)
-    path = current_path(options.project)
-    if cmd in ("serve", "mcp"):
-        from .interfaces import serve, mcp_server
+    if cmd == "mcp":
+        from .interfaces import mcp_server
 
-        if cmd == "mcp":
-            mcp_server(path, limits).run()
-        else:
-            p = Parser(prog="pix serve")
-            p.add_argument("--host", default="127.0.0.1")
-            p.add_argument("--port", type=int, default=8765)
-            p.add_argument("--token-env", default="PIX_API_TOKEN")
-            a = p.parse_args(args)
-            serve(path, a.host, a.port, os.environ.get(a.token_env), limits)
+        p = Parser(prog="pix mcp")
+        p.add_argument("--workspace", help="Directory containing documents, imports and exports")
+        a = p.parse_args(args)
+        # Explicit workspaces can start empty. Existing --project configurations still work.
+        path = current_path(options.project) if options.project or not a.workspace else None
+        mcp_server(path, limits, workspace=a.workspace).run()
+        return None, options.json
+    path = current_path(options.project)
+    if cmd == "serve":
+        from .interfaces import serve
+
+        p = Parser(prog="pix serve")
+        p.add_argument("--host", default="127.0.0.1")
+        p.add_argument("--port", type=int, default=8765)
+        p.add_argument("--token-env", default="PIX_API_TOKEN")
+        a = p.parse_args(args)
+        serve(path, a.host, a.port, os.environ.get(a.token_env), limits)
         return None, options.json
     with FileLock(str(path) + ".lock", timeout=10, is_singleton=True):
         project = Project.load(path, limits=limits, allow_linked=options.allow_linked)

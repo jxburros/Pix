@@ -424,9 +424,10 @@ def export(
     project.limits.size(*target_size)
     if target_size != image.size:
         image = image.resize(target_size, Image.Resampling.LANCZOS)
+    profile_format = settings.pop("format", None)
     fmt = (
         format
-        or settings.pop("format", None)
+        or profile_format
         or (
             {
                 ".jpg": "JPEG",

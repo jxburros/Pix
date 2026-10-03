@@ -12,7 +12,7 @@ This initial implementation covers the specification's core editor and automatio
 
 ## Install on Windows
 
-Download **Pix-Setup-0.7.0-windows-x64.exe** from [GitHub Releases](https://github.com/jxburros/Pix/releases/latest) and run it. The installer bundles Python and the REST/MCP dependencies, installs for your Windows account without administrator access, and adds `pix` to your user PATH. Completely close and reopen your terminal application after installation:
+Download **Pix-Setup-0.8.0-windows-x64.exe** from [GitHub Releases](https://github.com/jxburros/Pix/releases/latest) and run it. The installer bundles Python and the REST/MCP dependencies, installs for your Windows account without administrator access, and adds `pix` to your user PATH. Completely close and reopen your terminal application after installation:
 
 ```text
 pix --version
@@ -145,10 +145,10 @@ AI plans are validated and previewed by default. Generation provenance, model, r
 
 ```bash
 pix --project poster.pix serve  # local REST API, http://127.0.0.1:8765/docs
-pix --project poster.pix mcp    # MCP over stdio
+pix mcp --workspace .          # MCP over stdio; create/open documents with tools
 ```
 
-REST and MCP are scoped to one project and cannot import arbitrary host paths. See [interface setup](docs/interfaces.md), including MCP client configuration and authenticated REST access.
+MCP can create/open documents, import images by local path, and export files within its configured workspace. It advertises operation schemas directly, returns compact edit summaries, and bounds previews to 1024 pixels and 1 MiB by default. REST stays scoped to one project. See [interface setup](docs/interfaces.md), including MCP client configuration and authenticated REST access.
 
 ## Python API
 

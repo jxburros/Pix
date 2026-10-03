@@ -70,7 +70,7 @@ class Project:
             return next(x for x in state["layers"] if x["id"] == ident)
         return {
             **state,
-            "version": "0.7.0",
+            "version": "0.8.0",
             "head": self.head,
             "branch": self.current_branch,
             "history_count": len(self.nodes),
@@ -92,7 +92,8 @@ class Project:
             self.branches[self.current_branch] = ident
         self.redo_stack = []
 
-    def apply(self, operations, *, dry_run=False):
+    def apply(self, operations, *, dry_run=False, detail="full"):
+        require(detail in ("compact", "full"), "Unknown response detail")
         from .operations import execute
 
         if isinstance(operations, dict):
@@ -121,6 +122,10 @@ class Project:
             for key in ("canvas", "layers", "selection", "variables", "active_layer", "presets")
             if before[key] != after[key]
         }
+        if detail == "compact":
+            from .changes import compact_changes
+
+            changes = compact_changes(before, after)
         if not dry_run:
             if candidate.transaction is not None:
                 candidate.transaction["operations"].extend(deepcopy(operations))
@@ -216,7 +221,7 @@ class Project:
     def manifest(self):
         return {
             "format_version": 1,
-            "pix_version": "0.7.0",
+            "pix_version": "0.8.0",
             "state": self.state,
             "nodes": self.nodes,
             "head": self.head,
