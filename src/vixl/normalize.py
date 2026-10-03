@@ -228,6 +228,11 @@ def normalize_operation(operation, properties, known_types, effects, notes, inde
             return op
         if name != op["name"] and name in effects:
             op["name"] = name
+    blur = kind in ("blur", "gaussian-blur") or (kind == "effect" and op.get("name") in ("blur", "gaussian-blur"))
+    if blur and "radius" in op and "amount" not in op and "value" not in op:
+        # Blur strength lives in amount; a radius field used to be accepted and silently ignored.
+        op["amount"] = op.pop("radius")
+        note("blur 'radius' → 'amount'")
     if kind == "layer-style" and isinstance(op.get("name"), str):
         name = op["name"].lower().replace("_", "-").replace(" ", "-")
         if STYLE_ALIASES.get(name, name) != op["name"] and STYLE_ALIASES.get(name):

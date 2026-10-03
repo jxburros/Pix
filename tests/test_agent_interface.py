@@ -302,3 +302,12 @@ def test_mcp_check_preview_and_compare_tools(tmp_path):
     _, text, _ = call(server, "vixl_history", {"limit": 1})
     history = json.loads(text)
     assert history["total"] == 3 and history["nodes"][0]["operations"] == ["move"]
+
+
+def test_blur_radius_is_read_as_amount():
+    p = Project(16, 16)
+    p.apply({"type": "solid", "name": "s"})
+    result = p.apply({"type": "effect", "target": "s", "name": "blur", "radius": 3})
+    assert p.layer("s")["effects"][-1]["amount"] == 3 and "radius" in " ".join(result["normalized"])
+    p.apply({"type": "gaussian-blur", "target": "s", "radius": 2})
+    assert p.layer("s")["effects"][-1]["amount"] == 2
