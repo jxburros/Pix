@@ -1,4 +1,4 @@
-"""Typed, bounded MCP tools for a persistent Pix workspace session."""
+"""Typed, bounded MCP tools for a persistent Vixl workspace session."""
 
 from copy import deepcopy
 from io import BytesIO
@@ -115,7 +115,7 @@ def export_file(session, path, overwrite=False, **options):
                 if overwrite:
                     os.replace(temporary, destination)
                 else:
-                    # Atomic no-clobber publication, including non-Pix writers.
+                    # Atomic no-clobber publication, including non-Vixl writers.
                     os.link(temporary, destination)
             finally:
                 if os.path.exists(temporary):
@@ -159,17 +159,17 @@ def build_server(session):
     from mcp.server.fastmcp import FastMCP, Image
 
     server = FastMCP(
-        "Pix",
+        "Vixl",
         instructions=(
-            "Edit images in the configured workspace. Start with pix_workspace_list, then create/open a document. "
+            "Edit images in the configured workspace. Start with vixl_workspace_list, then create/open a document. "
             "Imports and exports use server-local paths relative to the workspace. Edits autosave atomically. "
-            "Use stable layer IDs from inspect/results. Operation formats are in pix_operations_apply's schema. "
+            "Use stable layer IDs from inspect/results. Operation formats are in vixl_operations_apply's schema. "
             "Previews are resized for model context; export writes full resolution. AI tools need a configured provider."
         ),
     )
 
     @server.tool()
-    def pix_workspace_list(
+    def vixl_workspace_list(
         directory: str = ".",
         offset: Annotated[int, Field(ge=0)] = 0,
         limit: Annotated[int, Field(ge=1, le=200)] = 100,
@@ -196,37 +196,37 @@ def build_server(session):
         }
 
     @server.tool()
-    def pix_document_create(
+    def vixl_document_create(
         path: str, width: Positive, height: Positive, background: str = "transparent"
     ) -> dict:
-        """Create and activate a new .pix file. Never overwrites an existing file."""
+        """Create and activate a new .vixl file. Never overwrites an existing file."""
         return session.create(path, width, height, background)
 
     @server.tool()
-    def pix_document_open(path: str) -> dict:
-        """Open/activate an existing .pix file in the workspace. Previous edits are already saved."""
+    def vixl_document_open(path: str) -> dict:
+        """Open/activate an existing .vixl file in the workspace. Previous edits are already saved."""
         return session.open(path)
 
     @server.tool()
-    def pix_document_inspect(target: str | None = None) -> dict:
+    def vixl_document_inspect(target: str | None = None) -> dict:
         """Inspect the document, or just one layer by stable ID/name, including resolved pixel bounds."""
         with session.project() as project:
             return project.inspect(target)
 
     @server.tool()
-    def pix_operations_apply(
+    def vixl_operations_apply(
         operations: Annotated[list[Operation], Field(min_length=1, max_length=1000)],
         dry_run: bool = False,
         detail: Detail = "compact",
     ) -> dict:
         """Apply typed operations atomically and autosave. Compact returns changed fields by layer ID;
         full explicitly includes before/after snapshots. dry_run validates without saving.
-        Coordinates are pixels in the parent group or canvas; omit target to use the active layer. Import paths via pix_import_image.
+        Coordinates are pixels in the parent group or canvas; omit target to use the active layer. Import paths via vixl_import_image.
         """
         return session.apply(operations, dry_run, detail)
 
     @server.tool()
-    def pix_render_preview(
+    def vixl_render_preview(
         variables: dict | None = None,
         max_width: Annotated[int, Field(ge=1, le=4096)] = 1024,
         max_height: Annotated[int, Field(ge=1, le=4096)] = 1024,
@@ -242,12 +242,12 @@ def build_server(session):
         )
 
     @server.tool()
-    def pix_import_image(path: str, name: str = "image") -> dict:
+    def vixl_import_image(path: str, name: str = "image") -> dict:
         """Read a server-local workspace image file and embed it as a layer; no base64 output needed."""
         return session.import_image(read_bounded(session.resolve(path), session.limits.max_asset_bytes), name)
 
     @server.tool()
-    def pix_export_file(
+    def vixl_export_file(
         path: str,
         quality: Annotated[int, Field(ge=1, le=100)] = 90,
         scale: Annotated[float, Field(ge=0.01, le=16)] = 1,
@@ -277,7 +277,7 @@ def build_server(session):
         )
 
     @server.tool()
-    def pix_measure_spacing(
+    def vixl_measure_spacing(
         targets: list[str] | None = None,
         axis: Literal["horizontal", "vertical"] = "vertical",
         around: str | None = None,
@@ -304,19 +304,19 @@ def build_server(session):
         )
 
     @server.tool()
-    def pix_pixels_inspect(target: str | None = None) -> dict:
+    def vixl_pixels_inspect(target: str | None = None) -> dict:
         """Inspect a pixel layer as compact character rows and palette colors, without image bytes."""
         with session.project() as project:
             return project.inspect_pixels(target)
 
     @server.tool()
-    def pix_animation_inspect() -> dict:
+    def vixl_animation_inspect() -> dict:
         """List saved animation frame names, sizes and durations without full snapshots."""
         with session.project() as project:
             return project.inspect_animation()
 
     @server.tool()
-    def pix_animation_preview(name: str, scale: Annotated[int, Field(ge=1, le=8)] = 1) -> Image:
+    def vixl_animation_preview(name: str, scale: Annotated[int, Field(ge=1, le=8)] = 1) -> Image:
         """Preview a saved frame with crisp integer scaling (default: native pixel size)."""
         with session.project() as project:
             image = project.render_frame(name, scale)
@@ -326,7 +326,7 @@ def build_server(session):
             return Image(data=stream.getvalue(), format="png")
 
     @server.tool()
-    def pix_export_animation(
+    def vixl_export_animation(
         path: str,
         format: Literal["gif", "apng", "sheet"] = "gif",
         scale: Annotated[int, Field(ge=1, le=32)] = 1,
@@ -344,7 +344,7 @@ def build_server(session):
             return result
 
     @server.tool()
-    def pix_measure(
+    def vixl_measure(
         point: list[int] | None = None,
         region: list[int] | None = None,
         foreground: str | None = None,
@@ -358,12 +358,12 @@ def build_server(session):
         )
 
     @server.tool()
-    def pix_validate(profile: str | None = None, rules: list[str] | None = None) -> dict:
+    def vixl_validate(profile: str | None = None, rules: list[str] | None = None) -> dict:
         """Check bounds, export profiles and assertions without changing the document."""
         return session.validate(profile, rules)
 
     @server.tool()
-    def pix_history(
+    def vixl_history(
         action: Literal[
             "list", "undo", "redo", "branch", "checkpoint", "checkout", "begin", "commit", "rollback"
         ] = "list",
@@ -384,7 +384,7 @@ def build_server(session):
         return result
 
     @server.tool()
-    def pix_ai_generate(
+    def vixl_ai_generate(
         prompt: str,
         mode: Literal["generate", "inpaint", "img2img"] = "generate",
         width: Positive | None = None,
@@ -415,39 +415,39 @@ def build_server(session):
         )
 
     @server.tool()
-    def pix_ai_remove(name: str = "removed-object", provider: str | None = None) -> dict:
+    def vixl_ai_remove(name: str = "removed-object", provider: str | None = None) -> dict:
         """Inpaint the selected object using a provider; insert a masked editable layer."""
         return typed_ai(session, "ai", ["remove"], name=name, provider=provider)
 
     @server.tool()
-    def pix_ai_content_aware_fill(
+    def vixl_ai_content_aware_fill(
         prompt: str | None = None, name: str = "filled-region", provider: str | None = None
     ) -> dict:
         """Fill the current selection using a configured provider, preserving pixels outside it."""
         return typed_ai(session, "ai", ["content-aware-fill"], prompt=prompt, name=name, provider=provider)
 
     @server.tool()
-    def pix_ai_select_subject(provider: str | None = None) -> dict:
+    def vixl_ai_select_subject(provider: str | None = None) -> dict:
         """Select the main subject using a provider-generated segmentation mask."""
         return typed_ai(session, "ai", ["select-subject"], provider=provider)
 
     @server.tool()
-    def pix_ai_remove_background(layer: str, provider: str | None = None) -> dict:
+    def vixl_ai_remove_background(layer: str, provider: str | None = None) -> dict:
         """Attach a provider-generated foreground mask to a layer, preserving editable source pixels."""
         return typed_ai(session, "ai", ["background-remove", layer], provider=provider)
 
     @server.tool()
-    def pix_ai_select_object(label: str, provider: str | None = None) -> dict:
+    def vixl_ai_select_object(label: str, provider: str | None = None) -> dict:
         """Select the named object using a provider-generated mask of the current canvas."""
         return typed_ai(session, "select", ["object", label], provider=provider)
 
     @server.tool()
-    def pix_ai_plan(prompt: str, apply: bool = False, provider: str | None = None) -> dict:
+    def vixl_ai_plan(prompt: str, apply: bool = False, provider: str | None = None) -> dict:
         """Ask a configured provider to propose edits; inspect the proposal before apply=true."""
         return typed_ai(session, "ask", prompt=prompt, apply=apply, provider=provider)
 
     @server.tool()
-    def pix_ai_analyze(
+    def vixl_ai_analyze(
         capability: Literal["describe", "detect", "ocr"], query: str = "", provider: str | None = None
     ) -> dict:
         """Describe the canvas, detect objects, or read its text using a configured vision provider."""
@@ -459,21 +459,21 @@ def build_server(session):
         )
 
     @server.tool()
-    def pix_ai_upscale(
+    def vixl_ai_upscale(
         layer: str, scale: Annotated[float, Field(gt=0, le=16)] = 2, provider: str | None = None
     ) -> dict:
         """Create an upscaled copy of a layer using a configured provider."""
         return typed_ai(session, "ai", ["upscale", layer], scale=scale, provider=provider)
 
     @server.tool()
-    def pix_ai_regenerate(
+    def vixl_ai_regenerate(
         layer: str, prompt: str | None = None, seed: int | None = None, provider: str | None = None
     ) -> dict:
         """Regenerate a generated layer using its saved settings, preserving its stable ID."""
         return typed_ai(session, "ai", ["regenerate", layer], prompt=prompt, seed=seed, provider=provider)
 
     @server.tool()
-    def pix_ai_extend(
+    def vixl_ai_extend(
         prompt: str,
         left: Annotated[int, Field(ge=0)] = 0,
         right: Annotated[int, Field(ge=0)] = 0,
@@ -498,7 +498,7 @@ def build_server(session):
             provider=provider,
         )
 
-    @server.resource("pix://operations")
+    @server.resource("vixl://operations")
     def operations_reference() -> str:
         return json.dumps(operation_schema())
 

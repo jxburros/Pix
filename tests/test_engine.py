@@ -6,11 +6,11 @@ import numpy as np
 from PIL import Image
 import pytest
 
-from pix import Project, PixError
-from pix.assets import add_image
-from pix.model import Limits
-from pix.render import composite, BLENDS, EFFECTS
-from pix.validation import assert_rule, validate
+from vixl import Project, VixlError
+from vixl.assets import add_image
+from vixl.model import Limits
+from vixl.render import composite, BLENDS, EFFECTS
+from vixl.validation import assert_rule, validate
 
 
 def solid(project, name="box", color="red", size=(8, 8)):
@@ -25,13 +25,13 @@ def test_portable_roundtrip_and_embedded_font(tmp_path):
     p.apply(
         [
             {"type": "add", "path": str(source), "name": "photo"},
-            {"type": "text", "text": "Pix", "name": "title", "size": 12, "y": 12},
+            {"type": "text", "text": "Vixl", "name": "title", "size": 12, "y": 12},
         ]
     )
     expected = p.render().tobytes()
-    p.save(tmp_path / "doc.pix")
+    p.save(tmp_path / "doc.vixl")
     source.unlink()
-    q = Project.load(tmp_path / "doc.pix")
+    q = Project.load(tmp_path / "doc.vixl")
     assert q.render().tobytes() == expected
     assert q.layer("photo")["provenance"]["original_filename"] == "source.png"
     assert q.state == p.state
@@ -42,7 +42,7 @@ def test_atomic_failure_and_dry_run():
     p = Project(32, 32)
     solid(p)
     before = deepcopy(p.manifest())
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         p.apply([{"type": "move", "x": 9}, {"type": "opacity", "value": 2}])
     assert p.manifest() == before
     result = p.apply([{"type": "move", "x": 12}], dry_run=True)
@@ -67,8 +67,8 @@ def test_history_branches_and_transactions_survive_restart(tmp_path):
     assert p.layer()["x"] == 10
     p.begin()
     p.apply({"type": "opacity", "value": 0.5})
-    p.save(tmp_path / "history.pix")
-    q = Project.load(tmp_path / "history.pix")
+    p.save(tmp_path / "history.vixl")
+    q = Project.load(tmp_path / "history.vixl")
     q.rollback()
     assert q.layer()["opacity"] == 1
     q.begin()
@@ -78,7 +78,7 @@ def test_history_branches_and_transactions_survive_restart(tmp_path):
     assert q.layer()["y"] == 0 and q.layer()["opacity"] == 1
     q.checkout("muted")
     assert q.layer()["x"] == 20
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         q.undo(999)
     assert q.layer()["x"] == 20
 
@@ -96,8 +96,8 @@ def test_selection_effect_is_local_and_persistent(tmp_path):
     image = p.render()
     assert image.getpixel((4, 5)) == (0, 255, 255, 255)
     assert image.getpixel((5, 5)) == (255, 0, 0, 255)
-    p.save(tmp_path / "mask.pix")
-    assert Project.load(tmp_path / "mask.pix").render().tobytes() == image.tobytes()
+    p.save(tmp_path / "mask.vixl")
+    assert Project.load(tmp_path / "mask.vixl").render().tobytes() == image.tobytes()
     p.apply({"type": "effect-disable", "effect": 1})
     assert p.render().getpixel((4, 5)) == (255, 0, 0, 255)
 
@@ -155,7 +155,7 @@ def test_constraints_stable_ids_reflow_and_cycle_rejection():
     assert p.inspect("brand")["resolved_bounds"] == (182, 10, 8, 8)
     assert p.inspect("label")["resolved_bounds"][1] == 23
     before = deepcopy(p.state)
-    with pytest.raises(PixError, match="cycle"):
+    with pytest.raises(VixlError, match="cycle"):
         p.apply({"type": "constrain", "target": "brand", "constraints": {"top": "label.bottom+5"}})
     assert p.state == before
 
@@ -207,7 +207,7 @@ def test_rasterize_preserves_render():
     p = Project(100, 100)
     p.apply(
         [
-            {"type": "text", "name": "title", "text": "Pix", "size": 24},
+            {"type": "text", "name": "title", "text": "Vixl", "size": 24},
             {"type": "rotate", "value": 15},
             {"type": "opacity", "value": 0.5},
         ]
@@ -240,47 +240,47 @@ def test_invalid_numbers_limits_unknown_operations():
         {"type": "opacity", "value": -1},
         {"type": "effect", "name": "curves", "points": [[1, 2], [1, 3]]},
     ]:
-        with pytest.raises(PixError):
+        with pytest.raises(VixlError):
             p.apply(op)
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         Project(10, 10, limits=Limits(max_pixels=50))
 
 
 def test_archive_rejects_traversal_tampering_and_bombs(tmp_path):
     p = Project(10, 10)
     p.apply({"type": "add", "asset": add_image(p, Image.new("RGBA", (8, 8), "red"))})
-    path = tmp_path / "doc.pix"
+    path = tmp_path / "doc.vixl"
     p.save(path)
     with zipfile.ZipFile(path) as z:
         entries = {n: z.read(n) for n in z.namelist()}
-    bad = tmp_path / "bad.pix"
+    bad = tmp_path / "bad.vixl"
     with zipfile.ZipFile(bad, "w") as z:
         for k, v in entries.items():
             z.writestr(k, v)
         z.writestr("../escape", "x")
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         Project.load(bad)
     asset = next(n for n in entries if n.startswith("assets/"))
     entries[asset] = b"bad"
     with zipfile.ZipFile(bad, "w") as z:
         for k, v in entries.items():
             z.writestr(k, v)
-    with pytest.raises(PixError, match="checksum"):
+    with pytest.raises(VixlError, match="checksum"):
         Project.load(bad)
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         Project.load(path, limits=Limits(max_project_bytes=100))
 
 
 def test_write_conflict(tmp_path):
     p = Project(10, 10)
     solid(p)
-    path = tmp_path / "doc.pix"
+    path = tmp_path / "doc.vixl"
     p.save(path)
     q = Project.load(path)
     p.apply({"type": "move", "x": 2})
     p.save()
     q.apply({"type": "move", "x": 3})
-    with pytest.raises(PixError, match="changed"):
+    with pytest.raises(VixlError, match="changed"):
         q.save()
     assert Project.load(path).layer()["x"] == 2
 
@@ -294,7 +294,7 @@ def test_validation_and_assertions():
     assert validate(p, "instagram-post")["valid"]
     p.apply({"type": "move", "x": 8})
     assert not validate(p)["valid"]
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         assert_rule(p, "__import__('os').system('bad')")
 
 
@@ -321,20 +321,20 @@ def test_preset_and_selection_combinations():
 
 
 def test_embedded_custom_font_and_color_variables(tmp_path):
-    import pix.render
+    import vixl.render
 
-    font = str(__import__("pathlib").Path(pix.render.__file__).parent / "data" / "DejaVuSans.ttf")
+    font = str(__import__("pathlib").Path(vixl.render.__file__).parent / "data" / "DejaVuSans.ttf")
     p = Project(120, 80)
     p.apply(
         [
             {"type": "variable", "name": "accent", "value": "#ff0000"},
-            {"type": "text", "name": "title", "text": "Pix", "font": font, "size": 24, "color": "${accent}"},
+            {"type": "text", "name": "title", "text": "Vixl", "font": font, "size": 24, "color": "${accent}"},
         ]
     )
     assert p.layer()["font"].startswith("fonts/")
     first = p.render().tobytes()
-    p.save(tmp_path / "font.pix")
-    q = Project.load(tmp_path / "font.pix")
+    p.save(tmp_path / "font.vixl")
+    q = Project.load(tmp_path / "font.vixl")
     assert q.render().tobytes() == first
     assert q.render({"accent": "#00ff00"}).tobytes() != first
 
@@ -349,7 +349,7 @@ def test_schema_rejects_unknown_fields_and_nulls_atomically():
         {"type": "variable", "name": "bad", "value": float("inf")},
         {"type": "canvas", "width": True},
     ]:
-        with pytest.raises(PixError):
+        with pytest.raises(VixlError):
             p.apply(op)
     assert p.state == before
     p.apply({"operation": "set_opacity", "layer": "box", "value": 0.4})

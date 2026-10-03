@@ -14,14 +14,14 @@ from filelock import FileLock
 from . import Project, __version__
 from .assets import read_bounded
 from .commands import Parser, compile_command, compile_script, dimensions, normalize, pairs
-from .errors import PixError, require
+from .errors import VixlError, require
 from .model import Limits
 from .validation import assert_rule, dependencies, validate
 
-HELP = """Pix — programmable image editing
+HELP = """Vixl — programmable image editing
 
-Usage: pix [--project FILE] [--json] COMMAND ...
-       pix                         Interactive editing shell
+Usage: vixl [--project FILE] [--json] COMMAND ...
+       vixl                         Interactive editing shell
 
 Documents: new SIZE [-o FILE] [--background COLOR], open FILE, save [FILE]
 Inspect:   status, inspect [LAYER], describe, layers, effects [LAYER], manifest,
@@ -63,7 +63,7 @@ Updates:   update [--check | --rollback], updates [on | off | status]
 Services:  serve [--host 127.0.0.1] [--port 8765], mcp [--workspace DIR]
 
 Options: --project/-p FILE, --json, --allow-linked, --plugins, --max-pixels N, --version
-Use pix COMMAND --help for editing command arguments. See docs/commands.md.
+Use vixl COMMAND --help for editing command arguments. See docs/commands.md.
 """
 
 
@@ -77,7 +77,7 @@ def emit(value, machine=False):
 
 
 def session_path():
-    return Path.cwd() / ".pix-session.json"
+    return Path.cwd() / ".vixl-session.json"
 
 
 def remember(path):
@@ -97,7 +97,7 @@ def current_path(explicit=None):
     try:
         return Path(json.loads(session_path().read_text())["project"])
     except (OSError, ValueError, KeyError):
-        raise PixError("no_project", "No current project. Use pix new SIZE -o FILE or pix open FILE.")
+        raise VixlError("no_project", "No current project. Use vixl new SIZE -o FILE or vixl open FILE.")
 
 
 def read_json(path):
@@ -106,11 +106,11 @@ def read_json(path):
     try:
         return json.loads(text)
     except ValueError as exc:
-        raise PixError("invalid_json", str(exc)) from exc
+        raise VixlError("invalid_json", str(exc)) from exc
 
 
 def output_options(args, command):
-    p = Parser(prog=f"pix {command}")
+    p = Parser(prog=f"vixl {command}")
     p.add_argument("path", nargs="?")
     p.add_argument("--out", "--preview", dest="out")
     p.add_argument("--quality", type=int, default=90)
@@ -153,7 +153,7 @@ def dispatch(argv):
     if cmd in ("update", "updates"):
         from . import updater
 
-        p = Parser(prog=f"pix {cmd}")
+        p = Parser(prog=f"vixl {cmd}")
         if cmd == "update":
             flags = p.add_mutually_exclusive_group()
             flags.add_argument("--check", action="store_true")
@@ -173,12 +173,12 @@ def dispatch(argv):
                 updater.rollback(root) if a.rollback else updater.update(root, check_only=a.check)
             ), options.json
         except updater.UpdateError as exc:
-            raise PixError("update_error", str(exc)) from exc
+            raise VixlError("update_error", str(exc)) from exc
     if cmd == "new":
-        p = Parser(prog="pix new")
+        p = Parser(prog="vixl new")
         p.add_argument("size")
         p.add_argument("--background", default="transparent")
-        p.add_argument("--out", "-o", default=options.project or "untitled.pix")
+        p.add_argument("--out", "-o", default=options.project or "untitled.vixl")
         a = p.parse_args(args)
         require(not Path(a.out).exists(), "Project already exists; choose another filename")
         project = Project(*dimensions(a.size), a.background, limits=limits)
@@ -197,7 +197,7 @@ def dispatch(argv):
     if cmd == "batch":
         return batch(args, limits, options.allow_linked), options.json
     if cmd == "convert":
-        p = Parser(prog="pix convert")
+        p = Parser(prog="vixl convert")
         p.add_argument("--grayscale", action="store_true")
         p.add_argument("--format", default="PNG")
         a = p.parse_args(args)
@@ -216,14 +216,14 @@ def dispatch(argv):
             project.apply({"type": "grayscale"})
         sys.stdout.buffer.write(project.export(format=a.format))
         return None, options.json
-    if cmd == "render" and args and args[0].endswith(".pix"):
+    if cmd == "render" and args and args[0].endswith(".vixl"):
         options.project = args.pop(0)
-    if cmd == "validate" and args and args[0].endswith(".pix"):
+    if cmd == "validate" and args and args[0].endswith(".vixl"):
         options.project = args.pop(0)
     if cmd == "mcp":
         from .interfaces import mcp_server
 
-        p = Parser(prog="pix mcp")
+        p = Parser(prog="vixl mcp")
         p.add_argument("--workspace", help="Directory containing documents, imports and exports")
         a = p.parse_args(args)
         # Explicit workspaces can start empty. Existing --project configurations still work.
@@ -234,10 +234,10 @@ def dispatch(argv):
     if cmd == "serve":
         from .interfaces import serve
 
-        p = Parser(prog="pix serve")
+        p = Parser(prog="vixl serve")
         p.add_argument("--host", default="127.0.0.1")
         p.add_argument("--port", type=int, default=8765)
-        p.add_argument("--token-env", default="PIX_API_TOKEN")
+        p.add_argument("--token-env", default="VIXL_API_TOKEN")
         a = p.parse_args(args)
         serve(path, a.host, a.port, os.environ.get(a.token_env), limits)
         return None, options.json
@@ -329,7 +329,7 @@ def project_command(project, cmd, args):
             return None, False
         return {"output": destination, "bytes": len(data)}, False
     if cmd == "spacing":
-        p = Parser(prog="pix spacing")
+        p = Parser(prog="vixl spacing")
         p.add_argument("--targets", nargs="+")
         p.add_argument("--axis", choices=["horizontal", "vertical"], default="vertical")
         for key in ("around", "before", "after", "artboard", "comp"):
@@ -341,7 +341,7 @@ def project_command(project, cmd, args):
         check = options.pop("check")
         result = project.measure_spacing(**options)
         if check and not result["passed"]:
-            raise PixError("spacing_mismatch", "Requested spacing is inconsistent", measurement=result)
+            raise VixlError("spacing_mismatch", "Requested spacing is inconsistent", measurement=result)
         return result, False
     if cmd == "pixels":
         require(len(args) <= 1, "Use pixels [LAYER]")
@@ -350,7 +350,7 @@ def project_command(project, cmd, args):
         require(not args, "Use animation to inspect frames")
         return project.inspect_animation(), False
     if cmd == "export-animation":
-        p = Parser(prog="pix export-animation")
+        p = Parser(prog="vixl export-animation")
         p.add_argument("--out", required=True)
         p.add_argument("--format", choices=["gif", "apng", "sheet"])
         p.add_argument("--scale", type=int, default=1)
@@ -360,7 +360,7 @@ def project_command(project, cmd, args):
     if cmd == "export-screens":
         from .exports import export_screens
 
-        p = Parser(prog="pix export-screens")
+        p = Parser(prog="vixl export-screens")
         p.add_argument("--out", required=True)
         p.add_argument("--scales", nargs="+", default=["1", "2"])
         p.add_argument("--artboards", nargs="+")
@@ -378,7 +378,7 @@ def project_command(project, cmd, args):
     if cmd in ("info", "sample", "histogram"):
         from .measure import measure
 
-        p = Parser(prog=f"pix {cmd}")
+        p = Parser(prog=f"vixl {cmd}")
         if cmd == "sample":
             p.add_argument("point", nargs=2, type=int)
         p.add_argument("--region", nargs=4, type=int)
@@ -389,7 +389,7 @@ def project_command(project, cmd, args):
         p.add_argument("--background", default="white")
         return measure(project, **vars(p.parse_args(args))), False
     if cmd in ("apply", "run"):
-        p = Parser(prog=f"pix {cmd}")
+        p = Parser(prog=f"vixl {cmd}")
         p.add_argument("file")
         p.add_argument("--dry-run", action="store_true")
         a = p.parse_args(args)
@@ -400,7 +400,7 @@ def project_command(project, cmd, args):
 
         require("--" in args, "Use each layer [--name PATTERN] [--type TYPE] -- COMMAND")
         split = args.index("--")
-        p = Parser(prog="pix each")
+        p = Parser(prog="vixl each")
         p.add_argument("kind", choices=["layer"])
         p.add_argument("--name", default="*")
         p.add_argument("--type")
@@ -439,7 +439,7 @@ def project_command(project, cmd, args):
     if cmd == "compare":
         from PIL import Image
 
-        p = Parser(prog="pix compare")
+        p = Parser(prog="vixl compare")
         p.add_argument("left")
         p.add_argument("right")
         p.add_argument("--out", required=True)
@@ -460,13 +460,13 @@ def project_command(project, cmd, args):
         require(assert_rule(project, rule), f"Assertion failed: {rule}", "assertion_failed")
         return {"passed": True, "rule": rule}, False
     if cmd == "validate":
-        p = Parser(prog="pix validate")
+        p = Parser(prog="vixl validate")
         p.add_argument("profile", nargs="?")
         p.add_argument("--rules")
         a = p.parse_args(args)
         result = validate(project, a.profile, read_json(a.rules) if a.rules else None)
         if not result["valid"]:
-            raise PixError("validation_failed", "Project validation failed", **result)
+            raise VixlError("validation_failed", "Project validation failed", **result)
         return result, False
     if cmd == "preset" and args and args[0] == "show":
         require(len(args) == 2 and args[1] in project.state["presets"], "Preset not found")
@@ -481,7 +481,7 @@ def project_command(project, cmd, args):
 
 
 def batch(args, limits, allow_linked):
-    p = Parser(prog="pix batch")
+    p = Parser(prog="vixl batch")
     p.add_argument("inputs", nargs="+")
     p.add_argument("--run", required=True)
     p.add_argument("--output", required=True)
@@ -508,10 +508,10 @@ def batch(args, limits, allow_linked):
             project.apply(ops)
             project.export(dest)
             results.append({"input": path, "output": str(dest), "success": True})
-        except (PixError, OSError) as exc:
+        except (VixlError, OSError) as exc:
             results.append({"input": path, "success": False, "error": str(exc)})
     if not all(r["success"] for r in results):
-        raise PixError("batch_failed", "Some batch items failed", results=results)
+        raise VixlError("batch_failed", "Some batch items failed", results=results)
     return results
 
 
@@ -520,10 +520,10 @@ def shell(options):
         import readline  # noqa: F401
     except ImportError:
         pass
-    print(f"Pix {__version__} · type help, exit, or a command")
+    print(f"Vixl {__version__} · type help, exit, or a command")
     while True:
         try:
-            line = input("pix > ").strip()
+            line = input("vixl > ").strip()
             if line in ("exit", "quit"):
                 break
             if not line:
@@ -540,7 +540,7 @@ def shell(options):
             break
         except KeyboardInterrupt:
             print()
-        except (PixError, OSError, ValueError) as exc:
+        except (VixlError, OSError, ValueError) as exc:
             print(f"ERROR: {exc}", file=sys.stderr)
 
 
@@ -550,10 +550,10 @@ def main(argv=None):
         result, machine = dispatch(argv)
         emit(result, machine)
         return 0
-    except (PixError, OSError, ValueError, TimeoutError) as exc:
+    except (VixlError, OSError, ValueError, TimeoutError) as exc:
         payload = (
             exc.as_dict()
-            if isinstance(exc, PixError)
+            if isinstance(exc, VixlError)
             else {"error": "io_error" if isinstance(exc, OSError) else "invalid_input", "message": str(exc)}
         )
         print(json.dumps(payload) if "--json" in argv else f"ERROR: {payload['message']}", file=sys.stderr)

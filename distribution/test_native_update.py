@@ -11,14 +11,14 @@ import sys
 import time
 from unittest.mock import patch
 
-from pix import __version__
-from pix import updater
+from vixl import __version__
+from vixl import updater
 
 root = Path(sys.argv[1]).resolve()
 bundle = Path(sys.argv[2]).resolve()
-launcher = root / "bin" / "pix.exe"
+launcher = root / "bin" / "vixl.exe"
 env = os.environ.copy()
-env.pop("PIX_NO_UPDATE", None)
+env.pop("VIXL_NO_UPDATE", None)
 # Simulate an older directory layout using the working runtime as our baseline fixture.
 old = "0.0.1"
 shutil.move(root / "versions" / __version__, root / "versions" / old)
@@ -54,7 +54,7 @@ assert updater.read_state(root)["previous"] == old
 # A corrupted candidate must never prevent the known-good version from running.
 broken = "999.0.0"
 (root / "versions" / broken).mkdir()
-(root / "versions" / broken / "pix-engine.exe").write_bytes(b"not an executable")
+(root / "versions" / broken / "vixl-engine.exe").write_bytes(b"not an executable")
 state = updater.read_state(root)
 state.update(pending=broken, last_check=time.time())
 updater.atomic_json(root / "install.json", state)

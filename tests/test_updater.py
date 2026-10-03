@@ -10,21 +10,21 @@ import zipfile
 
 import pytest
 
-from pix import updater as u
-from pix.cli import dispatch
-from pix.errors import PixError
+from vixl import updater as u
+from vixl.cli import dispatch
+from vixl.errors import VixlError
 
 
 @pytest.fixture
 def install(tmp_path, monkeypatch):
-    root = tmp_path / "Pix with spaces"
+    root = tmp_path / "Vixl with spaces"
     (root / "versions" / "0.7.0").mkdir(parents=True)
-    (root / "versions" / "0.7.0" / "pix-engine.exe").write_bytes(b"baseline")
+    (root / "versions" / "0.7.0" / "vixl-engine.exe").write_bytes(b"baseline")
     u.atomic_json(
         root / "install.json",
         {"protocol": 1, "current": "0.7.0", "previous": None, "pending": None, "auto": True, "last_check": 0},
     )
-    monkeypatch.setenv("PIX_MANAGED_ROOT", str(root))
+    monkeypatch.setenv("VIXL_MANAGED_ROOT", str(root))
     return root
 
 
@@ -32,7 +32,7 @@ def bundle_bytes(members=None):
     stream = io.BytesIO()
     with zipfile.ZipFile(stream, "w") as archive:
         for name, value in (
-            members or {"pix-engine.exe": b"new runtime", "_internal/font.ttf": b"font"}
+            members or {"vixl-engine.exe": b"new runtime", "_internal/font.ttf": b"font"}
         ).items():
             archive.writestr(name, value)
     return stream.getvalue()
@@ -45,7 +45,7 @@ def release_fixture(monkeypatch, payload=None, release="0.8.0"):
         "url": "fixture",
         "sha256": hashlib.sha256(data).hexdigest(),
         "size": len(data),
-        "release_url": f"https://github.com/jxburros/Pix/releases/tag/v{release}",
+        "release_url": f"https://github.com/jxburros/Vixl/releases/tag/v{release}",
     }
     monkeypatch.setattr(u, "latest", lambda: deepcopy(info))
 
@@ -64,9 +64,9 @@ def test_stage_is_atomic_then_activate_and_rollback(install, monkeypatch):
     assert u.update(install)["status"] == "ready"
     state = u.read_state(install)
     assert state["current"] == "0.7.0" and state["pending"] == "0.8.0"
-    assert (install / "versions/0.7.0/pix-engine.exe").read_bytes() == b"baseline"
+    assert (install / "versions/0.7.0/vixl-engine.exe").read_bytes() == b"baseline"
     exe, due = u.prepare_launch(install)
-    assert exe == install / "versions/0.8.0/pix-engine.exe" and due
+    assert exe == install / "versions/0.8.0/vixl-engine.exe" and due
     assert u.read_state(install)["previous"] == "0.7.0"
     assert u.rollback(install)["current"] == "0.7.0"
     assert not u.status(install)["automatic"]
@@ -111,7 +111,7 @@ def test_failed_pending_health_check_and_daily_check_cadence(install, monkeypatc
 
     monkeypatch.setattr(u, "probe", broken)
     exe, due = u.prepare_launch(install)
-    assert exe == install / "versions/0.7.0/pix-engine.exe" and due
+    assert exe == install / "versions/0.7.0/vixl-engine.exe" and due
     state = u.read_state(install)
     assert state["pending"] is None and state["rejected"] == "0.8.0"
     assert state["last_error"] == "bad runtime"
@@ -201,13 +201,13 @@ def test_latest_only_trusts_published_stable_correct_platform(monkeypatch):
         "tag_name": "v0.8.0",
         "draft": False,
         "prerelease": False,
-        "assets": [{"name": "pix-update.json"}, {"name": "pix-0.8.0-windows-x64.zip"}],
+        "assets": [{"name": "vixl-update.json"}, {"name": "vixl-0.8.0-windows-x64.zip"}],
     }
     manifest = {
         "protocol": 1,
         "version": "0.8.0",
         "platform": "windows-x64",
-        "asset": "pix-0.8.0-windows-x64.zip",
+        "asset": "vixl-0.8.0-windows-x64.zip",
         "sha256": "a" * 64,
         "size": 123,
     }
@@ -218,7 +218,7 @@ def test_latest_only_trusts_published_stable_correct_platform(monkeypatch):
     monkeypatch.setattr(u, "json_download", read)
     assert (
         u.latest()["url"]
-        == "https://github.com/jxburros/Pix/releases/download/v0.8.0/pix-0.8.0-windows-x64.zip"
+        == "https://github.com/jxburros/Vixl/releases/download/v0.8.0/vixl-0.8.0-windows-x64.zip"
     )
     release["prerelease"] = True
     with pytest.raises(u.UpdateError):
@@ -257,8 +257,8 @@ def test_cli_management_without_project(install, monkeypatch):
     release_fixture(monkeypatch)
     value, _ = dispatch(["update", "--check"])
     assert value["status"] == "available"
-    monkeypatch.delenv("PIX_MANAGED_ROOT")
-    with pytest.raises(PixError, match="Windows installer"):
+    monkeypatch.delenv("VIXL_MANAGED_ROOT")
+    with pytest.raises(VixlError, match="Windows installer"):
         dispatch(["update"])
 
 
@@ -290,12 +290,12 @@ def test_initialize_rejects_downgrade_preserves_opt_out(install, monkeypatch):
 
 
 def test_process_lock_excludes_other_processes(install):
-    script = "from pathlib import Path; from pix.updater import locked; import sys\nwith locked(Path(sys.argv[1]), timeout=.1): pass"
+    script = "from pathlib import Path; from vixl.updater import locked; import sys\nwith locked(Path(sys.argv[1]), timeout=.1): pass"
     import sys
 
     with u.locked(install):
         result = subprocess.run([sys.executable, "-c", script, str(install)], capture_output=True, timeout=5)
-    assert result.returncode != 0 and b"Another Pix update" in result.stderr
+    assert result.returncode != 0 and b"Another Vixl update" in result.stderr
 
 
 def test_launcher_rollback_does_not_depend_on_running_engine(install, monkeypatch, capsys):
@@ -304,14 +304,14 @@ def test_launcher_rollback_does_not_depend_on_running_engine(install, monkeypatc
 
     path = Path(__file__).resolve().parents[1] / "distribution" / "launcher.py"
     monkeypatch.setitem(sys.modules, "updater", u)
-    spec = importlib.util.spec_from_file_location("pix_launcher_test", path)
+    spec = importlib.util.spec_from_file_location("vixl_launcher_test", path)
     launcher = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(launcher)
     state = u.read_state(install)
     state["previous"] = "0.6.0"
     u.atomic_json(install / "install.json", state)
-    monkeypatch.setattr(sys, "executable", str(install / "bin/pix.exe"))
-    monkeypatch.setattr(sys, "argv", ["pix", "update", "--rollback", "--json"])
+    monkeypatch.setattr(sys, "executable", str(install / "bin/vixl.exe"))
+    monkeypatch.setattr(sys, "argv", ["vixl", "update", "--rollback", "--json"])
     monkeypatch.setattr(u, "probe", lambda *a, **kw: None)
     monkeypatch.setattr(
         subprocess, "call", lambda *a, **kw: pytest.fail("broken active CLI must not execute")

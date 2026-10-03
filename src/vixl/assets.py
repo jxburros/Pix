@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PIL import Image, ImageOps
 
-from .errors import PixError, require
+from .errors import VixlError, require
 
 
 def decode(data, limits, mode="RGBA"):
@@ -19,7 +19,7 @@ def decode(data, limits, mode="RGBA"):
                 limits.size(*image.size)
                 return ImageOps.exif_transpose(image).convert(mode)
     except (OSError, ValueError, Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
-        raise PixError("invalid_image", f"Cannot decode image: {exc}") from exc
+        raise VixlError("invalid_image", f"Cannot decode image: {exc}") from exc
 
 
 def png_bytes(image):

@@ -13,11 +13,11 @@ def main():
     root = Path(sys.executable).resolve().parent.parent
     args = sys.argv[1:]
     try:
-        if args[:1] == ["--pix-install"]:
+        if args[:1] == ["--vixl-install"]:
             updater.require(len(args) == 2, "Installer requires a version")
             updater.initialize(root, args[1])
             return 0
-        if args == ["--pix-background-update"]:
+        if args == ["--vixl-background-update"]:
             updater.background(root)
             return 0
         # Recovery must work even when a regression prevents the active CLI from importing.
@@ -26,13 +26,13 @@ def main():
             return 0
         # Update controls inspect the currently installed state without switching it underneath the command.
         controls = any(x in ("update", "updates") for x in args)
-        allow = os.environ.get("PIX_NO_UPDATE") != "1" and not controls
+        allow = os.environ.get("VIXL_NO_UPDATE") != "1" and not controls
         exe, due = updater.prepare_launch(root, allow_updates=allow)
         env = updater.child_environment(root)
         if due:
             try:
                 subprocess.Popen(
-                    [sys.executable, "--pix-background-update"],
+                    [sys.executable, "--vixl-background-update"],
                     stdin=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
@@ -46,7 +46,7 @@ def main():
         return subprocess.call([str(exe), *args], env=env)
     except updater.UpdateError as exc:
         message = (
-            json.dumps({"error": "update_error", "message": str(exc)}) if "--json" in args else f"Pix: {exc}"
+            json.dumps({"error": "update_error", "message": str(exc)}) if "--json" in args else f"Vixl: {exc}"
         )
         print(message, file=sys.stderr)
         return 1

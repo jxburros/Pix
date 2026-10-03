@@ -66,7 +66,7 @@ def compile_pixel(cmd, args):
 
     if cmd not in PIXEL_TYPES + ANIMATION_TYPES:
         return None
-    p = Parser(prog=f"pix {cmd}")
+    p = Parser(prog=f"vixl {cmd}")
     if cmd == "pixel-art":
         p.add_argument("--name")
         p.add_argument("--width", type=int)

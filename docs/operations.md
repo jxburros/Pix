@@ -4,7 +4,7 @@ See [spacing checks and pixel animation](pixel-animation-spacing.md) for the 0.9
 
 See [design tools and template production](design-tools.md) for groups, clipping, shapes, styles, artboards, CSV rendering, measurements, and the other design operations.
 
-`pix schema` or REST `GET /schema` returns the full Draft 2020-12 JSON Schema. MCP exposes the same schema at `pix://operations`. Every editing operation is schema-checked before I/O, then validated against the document and resource limits.
+`vixl schema` or REST `GET /schema` returns the full Draft 2020-12 JSON Schema. MCP exposes the same schema at `vixl://operations`. Every editing operation is schema-checked before I/O, then validated against the document and resource limits.
 
 ```json
 {"operations":[
@@ -43,7 +43,7 @@ Common operation fields:
 
 History transitions and project lifecycle use explicit methods / commands, not editing operations. Provider results are recorded as `ai-result` / `ai-mask` audit events; those audit events are not public operation types. History snapshots and embedded assets reproduce their pixels without recontacting a provider.
 
-## `.pix` format, version 1
+## `.vixl` format, version 1
 
 A ZIP archive contains `project.json`, `assets/<sha256>.png`, `masks/<sha256>.png`, and optionally `fonts/<sha256>.ttf`. Imports normalize orientation and convert to RGBA8 PNG. All members are checksummed. No archive paths are extracted to disk.
 

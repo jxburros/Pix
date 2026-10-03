@@ -12,7 +12,7 @@ import numpy as np
 from PIL import Image, ImageColor, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
 
 from .assets import decode, read_bounded
-from .errors import PixError, require
+from .errors import VixlError, require
 from .model import finite
 
 BLENDS = ("normal", "multiply", "screen", "overlay", "darken", "lighten", "difference", "add", "subtract")
@@ -63,7 +63,7 @@ def color(value):
     try:
         return ImageColor.getcolor(value, "RGBA")
     except (ValueError, TypeError) as exc:
-        raise PixError("invalid_color", f"Invalid color: {value}") from exc
+        raise VixlError("invalid_color", f"Invalid color: {value}") from exc
 
 
 def substitute(value, variables):
@@ -90,7 +90,7 @@ def font_for(project, layer):
             str(Path(__file__).parent / "data" / font) if font == "DejaVuSans.ttf" else font, size
         )
     except OSError as exc:
-        raise PixError(
+        raise VixlError(
             "missing_font", f"Font {font!r} not found; use DejaVuSans.ttf or import a font file"
         ) from exc
 
@@ -253,7 +253,7 @@ def resolve_layout(project, variables=None, layers=None):
             elif anchor == "center-y":
                 y = val - h / 2
             else:
-                raise PixError("invalid_constraint", f"Unknown anchor: {anchor}")
+                raise VixlError("invalid_constraint", f"Unknown anchor: {anchor}")
         bounds[ident] = (round(x), round(y), w, h)
         visiting.remove(ident)
         return bounds[ident]
@@ -389,7 +389,7 @@ def layer_image(project, layer, bounds):
 
         image = gradient_image(project, layer, (layer["width"], layer["height"]))
     else:
-        raise PixError("invalid_layer", f"Unsupported layer type: {kind}")
+        raise VixlError("invalid_layer", f"Unsupported layer type: {kind}")
     if not layer.get("repeat"):
         image = image.resize(
             (layer["width"], layer["height"]),
@@ -467,7 +467,7 @@ def composite(bottom, top, blend):
     elif blend == "subtract":
         mixed = np.maximum(0, cb - cs)
     else:
-        raise PixError("invalid_blend", f"Unknown blend mode: {blend}")
+        raise VixlError("invalid_blend", f"Unknown blend mode: {blend}")
     alpha = ass + ab * (1 - ass)
     rgb = ((1 - ass) * ab * cb + (1 - ab) * ass * cs + ab * ass * mixed) / np.maximum(alpha, 1e-8)
     return Image.fromarray(np.uint8(np.clip(np.concatenate((rgb, alpha), axis=2), 0, 1) * 255 + 0.5))
@@ -564,7 +564,7 @@ def export(
 ):
     require(sampling in ("smooth", "nearest"), "Sampling must be smooth or nearest")
     resample = Image.Resampling.NEAREST if sampling == "nearest" else Image.Resampling.LANCZOS
-    require(path is None or Path(path).suffix.lower() != ".pix", "Cannot export over a Pix project")
+    require(path is None or Path(path).suffix.lower() != ".vixl", "Cannot export over a Vixl project")
     finite(scale, "scale", 0.01, 16)
     finite(quality, "quality", 1, 100)
     settings = {}
@@ -607,7 +607,7 @@ def export(
     try:
         image.save(stream, format=fmt, **settings)
     except (OSError, KeyError) as exc:
-        raise PixError("codec_error", str(exc)) from exc
+        raise VixlError("codec_error", str(exc)) from exc
     data = stream.getvalue()
     if path:
         Path(path).write_bytes(data)

@@ -200,7 +200,7 @@ def operation_schema():
     pixel_schemas(add)
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "title": "Pix operation batch",
+        "title": "Vixl operation batch",
         "type": "object",
         "properties": {
             "operations": {"type": "array", "minItems": 1, "maxItems": 1000, "items": {"oneOf": variants}}
@@ -215,7 +215,7 @@ def validate_operation(operation):
     import json
     from jsonschema import Draft202012Validator
     from .operations import ALIASES
-    from .errors import PixError, require
+    from .errors import VixlError, require
 
     require(isinstance(operation, dict), "Each operation must be an object")
     result = deepcopy(operation)
@@ -229,9 +229,9 @@ def validate_operation(operation):
     require(schema is not None, f"Unknown operation: {result['type']}", "unknown_operation")
     error = next(Draft202012Validator(schema).iter_errors(result), None)
     if error:
-        raise PixError("invalid_operation", error.message, field=".".join(map(str, error.path)))
+        raise VixlError("invalid_operation", error.message, field=".".join(map(str, error.path)))
     try:
         json.dumps(result, allow_nan=False)
     except (ValueError, TypeError, RecursionError) as exc:
-        raise PixError("invalid_operation", "Operations must contain finite JSON values") from exc
+        raise VixlError("invalid_operation", "Operations must contain finite JSON values") from exc
     return result

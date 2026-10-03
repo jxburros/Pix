@@ -6,8 +6,8 @@ import httpx
 from PIL import Image
 import pytest
 
-from pix.ai import HTTPProvider, OpenAIProvider, Automatic1111Provider, ComfyUIProvider, encoded, provider
-from pix import PixError
+from vixl.ai import HTTPProvider, OpenAIProvider, Automatic1111Provider, ComfyUIProvider, encoded, provider
+from vixl import VixlError
 
 
 def adapter(cls=HTTPProvider, **options):
@@ -36,7 +36,7 @@ def test_http_gateway_uses_bounded_transport_and_rejects_redirect(monkeypatch):
             **kw,
         ),
     )
-    with pytest.raises(PixError, match="302"):
+    with pytest.raises(VixlError, match="302"):
         adapter().invoke("describe", {})
 
 
@@ -67,7 +67,7 @@ def test_openai_generation_and_edit_mask_conversion(monkeypatch):
     files = calls[-1][1]["files"]
     with Image.open(io.BytesIO(files["mask"][1])) as m:
         assert m.getpixel((0, 0))[3] == 0 and m.getpixel((1, 0))[3] == 255
-    with pytest.raises(PixError, match="seeds"):
+    with pytest.raises(VixlError, match="seeds"):
         backend.invoke("generate", {"seed": 1, "width": 1024, "height": 1024})
 
 
@@ -128,7 +128,7 @@ def test_comfyui_workflow_substitution_and_polling(tmp_path, monkeypatch):
     def capture(method, route, **kw):
         calls.append((route, kw))
         if route == "/upload/image":
-            return {"name": "source.png", "subfolder": "pix"}
+            return {"name": "source.png", "subfolder": "vixl"}
         if route == "/prompt":
             return {"prompt_id": "job"}
         return {
@@ -144,12 +144,12 @@ def test_comfyui_workflow_substitution_and_polling(tmp_path, monkeypatch):
         "generate", {"seed": 12, "prompt": "sky", "source_image": encoded(Image.new("RGBA", (2, 2)))}
     )
     graph = calls[1][1]["json"]["prompt"]
-    assert graph["1"]["inputs"] == {"seed": 12, "text": "sky", "image": "pix/source.png"}
+    assert graph["1"]["inputs"] == {"seed": 12, "text": "sky", "image": "vixl/source.png"}
     assert base64.b64decode(result["image"]) == b"image"
 
 
 def test_missing_provider_is_clear(tmp_path, monkeypatch):
-    monkeypatch.setenv("PIX_PROVIDERS", str(tmp_path / "none.json"))
-    monkeypatch.delenv("PIX_AI_PROVIDER", raising=False)
-    with pytest.raises(PixError, match="Configure"):
+    monkeypatch.setenv("VIXL_PROVIDERS", str(tmp_path / "none.json"))
+    monkeypatch.delenv("VIXL_AI_PROVIDER", raising=False)
+    with pytest.raises(VixlError, match="Configure"):
         provider()

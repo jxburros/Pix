@@ -8,7 +8,7 @@ from threading import RLock
 from filelock import FileLock
 
 from .assets import add_image, decode
-from .errors import PixError, require
+from .errors import VixlError, require
 from .model import Limits
 from .project import Project
 from .validation import validate
@@ -48,7 +48,7 @@ class Session:
     def create(self, path, width, height, background="transparent"):
         with self._mutex:
             resolved = self.resolve(path)
-            require(resolved.suffix.lower() == ".pix", "Document path must end in .pix")
+            require(resolved.suffix.lower() == ".vixl", "Document path must end in .vixl")
             require(resolved.parent.is_dir(), "Destination directory must exist")
             with FileLock(str(resolved) + ".lock", timeout=10, is_singleton=True):
                 require(not resolved.exists(), "Destination already exists")
@@ -183,9 +183,9 @@ def create_app(path, *, token=None, limits=None):
         from fastapi.responses import JSONResponse, Response
         from starlette.middleware.trustedhost import TrustedHostMiddleware
     except ImportError as exc:
-        raise PixError("missing_dependency", "Install pix-engine[server]") from exc
+        raise VixlError("missing_dependency", "Install vixl-engine[server]") from exc
     session = Session(path, limits)
-    app = FastAPI(title="Pix Engine", version="0.9.0")
+    app = FastAPI(title="Vixl Engine", version="0.10.0")
     if not token:
         app.add_middleware(
             TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver"]
@@ -207,8 +207,8 @@ def create_app(path, *, token=None, limits=None):
         request._body = bytes(body)
         return await call_next(request)
 
-    @app.exception_handler(PixError)
-    async def pix_error(request: Request, exc: PixError):
+    @app.exception_handler(VixlError)
+    async def vixl_error(request: Request, exc: VixlError):
         return JSONResponse(exc.as_dict(), status_code=403 if exc.code == "forbidden" else 400)
 
     @app.get("/schema")
@@ -298,13 +298,13 @@ def create_app(path, *, token=None, limits=None):
 def serve(path, host="127.0.0.1", port=8765, token=None, limits=None):
     require(
         host in ("127.0.0.1", "localhost", "::1") or token,
-        "Non-loopback serving requires PIX_API_TOKEN",
+        "Non-loopback serving requires VIXL_API_TOKEN",
         "authentication_required",
     )
     try:
         import uvicorn
     except ImportError as exc:
-        raise PixError("missing_dependency", "Install pix-engine[server]") from exc
+        raise VixlError("missing_dependency", "Install vixl-engine[server]") from exc
     uvicorn.run(create_app(path, token=token, limits=limits), host=host, port=port)
 
 
@@ -313,6 +313,6 @@ def mcp_server(path=None, limits=None, *, workspace=None):
         from .mcp_tools import build_server
         import mcp.server.fastmcp  # noqa: F401
     except ImportError as exc:
-        raise PixError("missing_dependency", "Install pix-engine[mcp]") from exc
+        raise VixlError("missing_dependency", "Install vixl-engine[mcp]") from exc
 
     return build_server(Session(path, limits, workspace=workspace))

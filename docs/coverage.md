@@ -4,8 +4,8 @@ This is a working first implementation spanning the six roadmap stages in the su
 
 | Specification area | Implemented |
 | --- | --- |
-| Core document (0.1) | New/open/save; ZIP `.pix` format; embedded raster/font/mask assets; stable layer IDs; editable text; transforms, crop, ordering, opacity and visibility; common blend modes; selections and masks; adjustments and filters; PNG/JPEG/WebP/TIFF export; JSON inspection; shell; undo/redo |
-| Automation (0.2) | Pix command scripts; batch and per-layer edits; effect presets with overrides; checkpoints; variables and render overrides; design assertions/profiles; alignment; export profiles; stdin JSON and image pipelines |
+| Core document (0.1) | New/open/save; ZIP `.vixl` format; embedded raster/font/mask assets; stable layer IDs; editable text; transforms, crop, ordering, opacity and visibility; common blend modes; selections and masks; adjustments and filters; PNG/JPEG/WebP/TIFF export; JSON inspection; shell; undo/redo |
+| Automation (0.2) | Vixl command scripts; batch and per-layer edits; effect presets with overrides; checkpoints; variables and render overrides; design assertions/profiles; alignment; export profiles; stdin JSON and image pipelines |
 | Advanced documents (0.3) | Acyclic anchor constraints; responsive canvas presets; branching history and visual comparison; nondestructive effect stacks; seeded filters; bounded in-process layer cache |
 | Vision (0.4) | Provider calls for description, object/face detection, OCR, segmentation and background masks; semantic selection converts returned masks into ordinary selections |
 | Generation (0.5) | Provider interface; OpenAI/ComfyUI/Automatic1111/HTTP adapters; text-to-image, image-to-image, selected inpainting, canvas extension/outpainting, upscaling; retained generation/source/mask provenance; regeneration |
@@ -23,9 +23,9 @@ This is a working first implementation spanning the six roadmap stages in the su
 - **Basic text layout.** Editable multiline text, wrapping/fitting, raster warp presets, polyline glyph placement, linked character/paragraph styles, alignment, spacing, stroke and font embedding are present. This is not an advanced publishing/shaping engine.
 - **Explicit layout semantics.** One anchor per axis, dependency cycles rejected. No general constraint solver. Outpainting freezes existing constraints at their current positions.
 - **Templates use embedded asset IDs.** Ordinary render variables cannot load arbitrary paths. Image-slot variables reference embedded asset IDs. The explicit local CSV data-set workflow can import image paths relative to its CSV file.
-- **Scripts are a command language.** No alternate English-like parser, control-flow language, shell execution, AI steps, or file lifecycle/export commands inside a `.pixscript`. Use the Python API or shell orchestration around scripts.
+- **Scripts are a command language.** No alternate English-like parser, control-flow language, shell execution, AI steps, or file lifecycle/export commands inside a `.vixlscript`. Use the Python API or shell orchestration around scripts.
 - **Snapshot history.** No branch merging, replay-based collaboration, asset garbage collection, or history compaction. Comparison renders two captured states side by side. Open transactions are not isolated from other clients.
 - **Bounded inputs, not a process sandbox.** There is no `--max-memory` hard cap or universal execution timeout. Use OS/container resource limits. Installed plugins are trusted code. Filter/provider plugins exist; other plugin categories are deferred.
 - **Headless interfaces only.** Desktop GUI, TUI, web editor, template marketplace, and dedicated AI Server Studio product integration remain future front ends. Any MCP client can use the implemented server.
 
-The exact supported operation syntax is discoverable through `pix schema` and documented in [commands](commands.md) and [operations](operations.md). Unsupported features fail explicitly or are absent from those interfaces.
+The exact supported operation syntax is discoverable through `vixl schema` and documented in [commands](commands.md) and [operations](operations.md). Unsupported features fail explicitly or are absent from those interfaces.
