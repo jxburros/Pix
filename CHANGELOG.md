@@ -31,6 +31,9 @@ Vixl's main users are AI agents; this release targets long agent sessions, fewer
 **Evaluation**
 - `evals/`: eight design briefs with programmatic checks and reference solutions, a harness that drives the real MCP server, a Claude agent (official SDK), and a manual GitHub workflow for live runs.
 
+**Documentation**
+- Add the `skills/vixl` agent skill covering MCP tools, CLI commands, REST routes, the Python API, every operation type, AI providers and tested recipes.
+
 **Packaging**
 - The version is single-sourced from `vixl.__version__`.
 
