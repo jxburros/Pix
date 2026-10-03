@@ -97,6 +97,15 @@ def font_for(project, layer):
 def text_metrics(project, layer, variables=None):
     text = substitute(layer["text"], variables or project.state["variables"])
     require(len(text) <= 100000, "Text exceeds length limit", "resource_limit")
+    from .text import measure, font_data, UnsupportedText
+
+    try:
+        _, box = measure(font_data(project, layer), text, layer["size"], layer.get("spacing", 4), layer.get("align", "left"))
+        stroke = layer.get("stroke_width", 0)
+        box = (box[0] - stroke, box[1] - stroke, box[2] + stroke, box[3] + stroke)
+        return max(1, math.ceil(box[2] - box[0])), max(1, math.ceil(box[3] - box[1])), box
+    except UnsupportedText:
+        pass
     draw = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
     box = draw.multiline_textbbox(
         (0, 0),
@@ -263,6 +272,12 @@ def resolve_layout(project, variables=None, layers=None):
 
 
 def apply_effect(image, effect):
+    from .constants import ARTISTIC_DEFAULTS
+
+    if effect["name"] in ARTISTIC_DEFAULTS:
+        from .artistic import artistic_filter
+
+        return artistic_filter(image, effect)
     name = effect["name"]
     value = effect.get("amount", 0)
     alpha = image.getchannel("A")
@@ -473,8 +488,33 @@ def composite(bottom, top, blend):
     return Image.fromarray(np.uint8(np.clip(np.concatenate((rgb, alpha), axis=2), 0, 1) * 255 + 0.5))
 
 
+def layer_surface(project, layer, bounds, size, index, visiting=None):
+    """Composite one layer and its clipping dependencies over transparent pixels."""
+    from .design_render import styled_image
+    from PIL import ImageChops
+
+    visiting = set() if visiting is None else visiting
+    ident = layer["id"]
+    require(ident not in visiting, "Clipping contains a cycle")
+    visiting.add(ident)
+    tile = Image.new("RGBA", size)
+    if layer["visible"]:
+        b = bounds[ident]
+        source = layer_image(project, {**layer, "opacity": 1}, b)
+        tile.alpha_composite(source, (b[0], b[1]))
+        if layer.get("styles"):
+            tile = styled_image(project, tile, layer["styles"])
+        if layer.get("clip"):
+            mask = layer_surface(project, index[layer["clip"]], bounds, size, index, visiting)
+            tile.putalpha(ImageChops.multiply(tile.getchannel("A"), mask.getchannel("A")))
+        if layer["opacity"] != 1:
+            tile.putalpha(tile.getchannel("A").point(lambda a: round(a * layer["opacity"])))
+    visiting.remove(ident)
+    return tile
+
+
 def render_layers(project, parent=None, size=None, background="transparent"):
-    from .design_render import styled_image, apply_lookup
+    from .design_render import apply_lookup
 
     layers = resolved_layers(project)
     bounds = resolve_layout(project, layers=layers)
@@ -483,31 +523,8 @@ def render_layers(project, parent=None, size=None, background="transparent"):
     project.limits.size(*size)
     image = Image.new("RGBA", size, color(background))
     index = {item["id"]: item for item in layers}
-    visiting = set()
-
     def surface(layer):
-        ident = layer["id"]
-        require(ident not in visiting, "Clipping contains a cycle")
-        visiting.add(ident)
-        tile = Image.new("RGBA", size)
-        if layer["visible"]:
-            b = bounds[ident]
-            # Group styles and opacity apply once to the flattened group.
-            working = {**layer, "opacity": 1}
-            source = layer_image(project, working, b)
-            tile.alpha_composite(source, (b[0], b[1]))
-            if layer.get("styles"):
-                tile = styled_image(project, tile, layer["styles"])
-            if layer.get("clip"):
-                from PIL import ImageChops
-
-                tile.putalpha(
-                    ImageChops.multiply(tile.getchannel("A"), surface(index[layer["clip"]]).getchannel("A"))
-                )
-            if layer["opacity"] != 1:
-                tile.putalpha(tile.getchannel("A").point(lambda a: round(a * layer["opacity"])))
-        visiting.remove(ident)
-        return tile
+        return layer_surface(project, layer, bounds, size, index)
 
     def direct(layer):
         """Composite a plain layer only over its own bounds instead of a full-canvas tile."""
@@ -583,8 +600,10 @@ def export(
     artboard=None,
     comp=None,
     sampling="smooth",
+    svg_policy="appearance",
 ):
     require(sampling in ("smooth", "nearest"), "Sampling must be smooth or nearest")
+    require(svg_policy in ("appearance", "strict"), "SVG policy must be appearance or strict")
     resample = Image.Resampling.NEAREST if sampling == "nearest" else Image.Resampling.LANCZOS
     require(path is None or Path(path).suffix.lower() != ".vixl", "Cannot export over a Vixl project")
     finite(scale, "scale", 0.01, 16)
@@ -600,10 +619,11 @@ def export(
         require(not profile, "SVG export does not use raster export profiles")
         from .svg import export_svg
 
-        data = export_svg(project, scale=scale, variables=variables, artboard=artboard, comp=comp)
+        data = export_svg(project, scale=scale, variables=variables, artboard=artboard, comp=comp, svg_policy=svg_policy)
         if path:
             Path(path).write_bytes(data)
         return data
+    require(svg_policy == "appearance", "Strict SVG policy requires SVG output")
     if format:
         format = {"JPG": "JPEG", "TIF": "TIFF"}.get(format.upper(), format.upper())
     image = render(project, variables, artboard, comp)

@@ -204,6 +204,8 @@ def _operation_schema():
         "seed": {"type": "integer", "minimum": 0},
         "radius": N,
         "strength": N,
+        "shadow_color": S,
+        "highlight_color": S,
         "black": N,
         "white": N,
         "points": {

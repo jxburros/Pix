@@ -80,9 +80,26 @@ OPERATION_TYPES = list(DESIGN_TYPES + PIXEL_TYPES + ANIMATION_TYPES + RESOURCE_T
 
 
 def effect_valid(effect):
+    from .constants import ARTISTIC_DEFAULTS
+
     name = effect["name"]
-    value = finite(effect.get("amount", 0), "amount", -100000, 100000)
-    if name in ("blur", "gaussian-blur"):
+    value = finite(effect.get("amount", ARTISTIC_DEFAULTS.get(name, 0)), "amount", -100000, 100000)
+    if name in ARTISTIC_DEFAULTS:
+        ranges = {
+            "solarize": (0, 255), "ink-blot": (0, 255), "stamp": (0, 255), "photocopy": (0, 255),
+            "pixelate": (1, 256), "halftone": (2, 128), "crosshatch": (2, 128), "oil-paint": (1, 6),
+            "swirl": (-720, 720), "ripple": (0, 64), "wave": (0, 64), "glass": (0, 64),
+        }
+        finite(value, "amount", *ranges.get(name, (0, 100)))
+        if name in ("pixelate", "halftone", "crosshatch", "oil-paint"):
+            require(value == int(value), f"{name} amount must be an integer")
+        if "radius" in effect:
+            bounds = (0.01, 1) if name == "swirl" else (1, 256) if name in ("ripple", "wave", "glass") else (0, 20)
+            finite(effect["radius"], "radius", *bounds)
+        for key in ("shadow_color", "highlight_color"):
+            if key in effect:
+                require(color(effect[key])[3] == 255, "Duotone colors must be opaque")
+    elif name in ("blur", "gaussian-blur"):
         finite(value, "radius", 0, 1000)
     elif name == "sharpen":
         finite(value, "amount", 0, 100)
@@ -516,16 +533,18 @@ def execute(project, op):
             else:
                 raise VixlError("invalid_mask", f"Unknown mask action: {action}")
     elif kind in ("effect", *EFFECTS):
+        from .constants import ARTISTIC_DEFAULTS
+
         name = op["name"] if kind == "effect" else kind
         require(len(layer["effects"]) < 256, "Effect limit reached", "resource_limit")
         effect = {
             "id": uid("fx"),
             "name": name,
-            "amount": op.get("amount", op.get("value", 0)),
+            "amount": op.get("amount", op.get("value", ARTISTIC_DEFAULTS.get(name, 0))),
             "enabled": True,
             "selection": project.state["selection"],
         }
-        for key in ("seed", "radius", "strength", "black", "white", "points"):
+        for key in ("seed", "radius", "strength", "black", "white", "points", "shadow_color", "highlight_color"):
             if key in op:
                 effect[key] = op[key]
         effect_valid(effect)
@@ -550,7 +569,7 @@ def execute(project, op):
         elif kind == "effect-set":
             if "value" in op and "amount" not in op:
                 op["amount"] = op["value"]
-            for key in ("amount", "seed", "radius", "strength", "black", "white", "points"):
+            for key in ("amount", "seed", "radius", "strength", "black", "white", "points", "shadow_color", "highlight_color"):
                 if key in op:
                     effect[key] = op[key]
             effect_valid(effect)

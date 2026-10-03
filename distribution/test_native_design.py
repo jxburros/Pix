@@ -17,7 +17,7 @@ import resvg_py
 def verify(executable, workspace):
     def cli(*args, operations=None):
         result = subprocess.run(
-            [executable, "--json", *map(str, args)],
+            [*([executable] if isinstance(executable, str) else executable), "--json", *map(str, args)],
             cwd=workspace,
             input=json.dumps(operations).encode() if operations is not None else None,
             capture_output=True,
@@ -78,9 +78,42 @@ def verify(executable, workspace):
     image = Image.open(io.BytesIO(resvg_py.svg_to_bytes(svg_string=svg)))
     vector = np.asarray(image)[:, :, 3] > 128
     assert (raster & vector).sum() / (raster | vector).sum() > 0.97
+    cli("new", "400x200", "-o", "unicode.vixl")
+    cli(
+        "apply",
+        "-",
+        operations={
+            "operations": [
+                {
+                    "type": "text",
+                    "name": "label",
+                    "text": "Office Café العربية",
+                    "size": 28,
+                    "color": "#875634",
+                    "x": 5,
+                    "y": 10,
+                },
+                {"type": "sepia"},
+                {"type": "layer-style", "name": "drop-shadow", "settings": {"blur": 2}},
+            ]
+        },
+    )
+    cli("export", "unicode.svg", "--svg-policy", "strict")
+    svg = ET.parse(workspace / "unicode.svg")
+    assert svg.findall(".//{*}path") and svg.findall(".//{*}filter") and not svg.findall(".//{*}image")
+    cli("glass", "4", "--seed", "17")
+    cli("export", "glass.png")
+    with Image.open(workspace / "glass.png") as image:
+        assert image.getbbox() and image.mode == "RGBA"
+    cli("effect", "disable", "label", "2")
+    cli("ink-blot", "128", "--radius", "2")
+    cli("export", "ink.png")
+    with Image.open(workspace / "ink.png") as image:
+        colors = np.asarray(image)[:, :, :3]
+        assert set(np.unique(colors)).issubset({0, 255})
 
 
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory(prefix="vixl-native-design-") as temporary:
         verify(sys.argv[1], Path(temporary))
-    print("Frozen normalization, SVG rotation, grouped geometry and wordmark verified")
+    print("Frozen Unicode shaping, SVG filters, strict export, glass/ink filters and logo workflow verified")

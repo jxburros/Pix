@@ -596,12 +596,14 @@ def build_server(session, *, schema="full", planner=False):
         background: str = "white",
         overwrite: bool = False,
         sampling: Literal["smooth", "nearest"] = "smooth",
+        svg_policy: Literal["appearance", "strict"] = "appearance",
         artboard: str | None = None,
         comp: str | None = None,
         document: Document = None,
     ) -> dict:
         """Export to a workspace file, format from extension (PNG/JPEG/WEBP/TIFF/AVIF/SVG), full size by
-        default. Returns file metadata, never image bytes."""
+        default. SVG policy strict rejects any embedded raster fallback, with layer/effect details.
+        Returns file metadata, never image bytes."""
         return export_file(
             session,
             path,
@@ -613,6 +615,7 @@ def build_server(session, *, schema="full", planner=False):
             variables=variables,
             background=background,
             sampling=sampling,
+            svg_policy=svg_policy,
             artboard=artboard,
             comp=comp,
         )

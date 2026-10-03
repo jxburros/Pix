@@ -127,6 +127,7 @@ def output_options(args, command):
     p.add_argument("--comp")
     p.add_argument("--data")
     p.add_argument("--sampling", choices=["smooth", "nearest"], default="smooth")
+    p.add_argument("--svg-policy", choices=["appearance", "strict"], default="appearance")
     return p.parse_args(args)
 
 
@@ -418,6 +419,7 @@ def project_command(project, cmd, args, *, detail="compact"):
             "Cannot export over the project",
         )
         if a.data:
+            require(a.svg_policy == "appearance", "Strict SVG policy requires SVG output")
             from .exports import render_data
 
             require(destination != "-", "Data rendering requires an output directory")
@@ -444,6 +446,7 @@ def project_command(project, cmd, args, *, detail="compact"):
             artboard=a.artboard,
             comp=a.comp,
             sampling=a.sampling,
+            svg_policy=a.svg_policy,
         )
         if destination == "-":
             sys.stdout.buffer.write(data)

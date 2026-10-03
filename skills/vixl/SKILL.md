@@ -26,7 +26,7 @@ Key properties to rely on:
 
 ## New in 0.11
 
-Discover commands with `vixl commands --json` and shape shortcuts with `vixl shapes`. Command help works without an open document. CLI edits now default to compact results; add `--detail full` for snapshots. Use named palettes, built-in/custom templates, overall/style guidance, explicit HTTPS/local fonts, expanded shapes and single-contour Bézier paths. SVG retains supported shapes, gradients, groups, pixels, boolean silhouettes and outlined ASCII wordmarks as vectors; metadata identifies any raster fallbacks. PNG preserves transparency; JPG flattens against an explicit background.
+Discover commands with `vixl commands --json` and shape shortcuts with `vixl shapes`. Command help works without an open document. CLI edits now default to compact results; add `--detail full` for snapshots. Use named palettes, built-in/custom templates, overall/style guidance, explicit HTTPS/local fonts, expanded shapes and single-contour Bézier paths. SVG retains supported shapes, gradients, groups, pixels, boolean silhouettes and shaped Unicode text and common effects/styles as vectors; strict SVG policy rejects embedded raster content with layer/effect details. See [local artistic filters](references/artistic-filters.md) for 19 deterministic treatments, defaults and ranges; no AI provider is needed. PNG preserves transparency; JPG flattens against an explicit background.
 
 See [resources](references/resources.md) for the new MCP tools and CLI/operation examples. Discover authenticated provider models with `vixl models --refresh` or `vixl_models_list`; native Anthropic/Gemini and OpenAI-compatible Mistral/Meta join the existing providers. Midjourney requires an authorized HTTP gateway, not a fabricated official API.
 

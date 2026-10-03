@@ -178,12 +178,12 @@ def test_hidden_group_styles_do_not_flatten_visible_vectors():
     assert not root.findall(".//{*}image")
 
 
-def test_complex_text_and_effects_report_faithful_raster_fallback():
+def test_ligatures_use_shared_outlines_without_raster_fallback():
     p = Project(180, 60)
     p.apply({"type": "text", "text": "office", "size": 32, "color": "red"})
     image, root = svg_image(p)
-    assert root.findall(".//{*}image")
-    assert json.loads(root.find("{*}metadata").text)["vixl"]["raster_fallbacks"]
+    assert not root.findall(".//{*}image")
+    assert root.findall(".//{*}path")
     assert image.tobytes() == p.render().tobytes()
 
 
