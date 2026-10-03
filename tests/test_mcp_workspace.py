@@ -12,16 +12,16 @@ import numpy as np
 from PIL import Image
 import pytest
 
-from pix import Project, PixError
-from pix.interfaces import Session, mcp_server
-from pix.mcp_tools import export_file, preview
+from vixl import Project, VixlError
+from vixl.interfaces import Session, mcp_server
+from vixl.mcp_tools import export_file, preview
 from test_interfaces_ai import FakeProvider
 
 
 def test_operation_schema_is_in_tools_list(tmp_path):
     async def run():
         tools = {t.name: t for t in await mcp_server(workspace=tmp_path).list_tools()}
-        schema = tools["pix_operations_apply"].inputSchema
+        schema = tools["vixl_operations_apply"].inputSchema
         jsonschema.Draft202012Validator.check_schema(schema)
         operations = [
             {"type": "text", "text": "title", "name": "title"},
@@ -40,9 +40,9 @@ def test_operation_schema_is_in_tools_list(tmp_path):
         ):
             with pytest.raises(jsonschema.ValidationError):
                 jsonschema.validate({"operations": [invalid]}, schema)
-        assert "pix_ai" not in tools
-        assert "args" not in tools["pix_ai_generate"].inputSchema["properties"]
-        assert tools["pix_ai_generate"].inputSchema["properties"]["seed"]["anyOf"][0]["type"] == "integer"
+        assert "vixl_ai" not in tools
+        assert "args" not in tools["vixl_ai_generate"].inputSchema["properties"]
+        assert tools["vixl_ai_generate"].inputSchema["properties"]["seed"]["anyOf"][0]["type"] == "integer"
         # Design and pixel/animation operations extend the catalog; shared constraints keep the inline schema bounded.
         assert len(json.dumps(schema)) < 18000
 
@@ -51,14 +51,14 @@ def test_operation_schema_is_in_tools_list(tmp_path):
 
 def test_compact_changes_and_dry_run(tmp_path):
     session = Session(workspace=tmp_path)
-    session.create("poster.pix", 100, 100)
+    session.create("poster.vixl", 100, 100)
     session.apply([{"type": "solid", "name": f"layer{i}"} for i in range(28)])
     ident = session.inspect()["layers"][0]["id"]
-    original = (tmp_path / "poster.pix").read_bytes()
+    original = (tmp_path / "poster.vixl").read_bytes()
     result = session.apply([{"type": "move", "target": ident, "x": 12}], dry_run=True)
     assert len(json.dumps(result)) < 600
     assert result["changes"]["layers"][ident]["x"] == {"before": 0, "after": 12}
-    assert (tmp_path / "poster.pix").read_bytes() == original
+    assert (tmp_path / "poster.vixl").read_bytes() == original
     assert session.inspect()["layers"][0]["x"] == 0
     full = session.apply([{"type": "move", "target": ident, "x": 12}], detail="full")
     assert len(full["changes"]["layers"]["before"]) == 28
@@ -71,7 +71,7 @@ def test_compact_changes_and_dry_run(tmp_path):
 def test_session_caches_and_reloads_external_changes(tmp_path, monkeypatch):
     p = Project(16, 16)
     p.apply({"type": "solid", "name": "logo"})
-    path = tmp_path / "doc.pix"
+    path = tmp_path / "doc.vixl"
     p.save(path)
     original_load = Project.load
     calls = []
@@ -93,14 +93,14 @@ def test_session_caches_and_reloads_external_changes(tmp_path, monkeypatch):
     external.save()
     assert session.inspect()["layers"][0]["x"] == 8
     assert len(calls) == 2
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         session.apply([{"type": "move", "x": 10}, {"type": "opacity", "value": 4}])
     assert session.inspect()["layers"][0]["x"] == 8
 
 
 def test_save_failure_discards_dirty_cache(tmp_path, monkeypatch):
     session = Session(workspace=tmp_path)
-    session.create("a.pix", 16, 16)
+    session.create("a.vixl", 16, 16)
     session.apply([{"type": "solid"}])
     original = Project.save
 
@@ -116,9 +116,9 @@ def test_save_failure_discards_dirty_cache(tmp_path, monkeypatch):
 
 def test_two_sessions_and_threads_do_not_lose_edits(tmp_path):
     first = Session(workspace=tmp_path)
-    first.create("a.pix", 16, 16)
+    first.create("a.vixl", 16, 16)
     first.apply([{"type": "solid"}])
-    second = Session(tmp_path / "a.pix")
+    second = Session(tmp_path / "a.vixl")
 
     def move(i):
         (first if i % 2 else second).apply([{"type": "move", "x": 1, "relative": True}])
@@ -133,12 +133,12 @@ def test_workspace_io_boundaries_and_failed_switch(tmp_path):
     workspace = tmp_path / "work"
     workspace.mkdir()
     session = Session(workspace=workspace)
-    with pytest.raises(PixError, match="Create or open"):
+    with pytest.raises(VixlError, match="Create or open"):
         session.inspect()
-    session.create("a.pix", 16, 16)
+    session.create("a.vixl", 16, 16)
     original_head = session.inspect()["head"]
-    for path in ("../escape.pix", str(tmp_path / "outside.pix")):
-        with pytest.raises(PixError):
+    for path in ("../escape.vixl", str(tmp_path / "outside.vixl")):
+        with pytest.raises(VixlError):
             session.create(path, 16, 16)
     outside = tmp_path / "outside"
     outside.mkdir()
@@ -147,22 +147,22 @@ def test_workspace_io_boundaries_and_failed_switch(tmp_path):
     except OSError:
         pass  # Windows accounts may lack symlink privileges.
     else:
-        with pytest.raises(PixError):
-            session.create("link/escape.pix", 16, 16)
-    with pytest.raises(PixError):
-        session.create("a.pix", 32, 32)
-    with pytest.raises((PixError, OSError)):
-        session.open("missing.pix")
+        with pytest.raises(VixlError):
+            session.create("link/escape.vixl", 16, 16)
+    with pytest.raises(VixlError):
+        session.create("a.vixl", 32, 32)
+    with pytest.raises((VixlError, OSError)):
+        session.open("missing.vixl")
     assert session.inspect()["head"] == original_head
     export_file(session, "out.png")
     assert Image.open(workspace / "out.png").size == (16, 16)
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         export_file(session, "out.png")
     export_file(session, "out.png", overwrite=True)
-    with pytest.raises(PixError):
-        export_file(session, "a.pix", overwrite=True)
-    session.create("b.pix", 32, 32)
-    session.open("a.pix")
+    with pytest.raises(VixlError):
+        export_file(session, "a.vixl", overwrite=True)
+    session.create("b.vixl", 32, 32)
+    session.open("a.vixl")
     assert session.inspect()["head"] == original_head
 
 
@@ -172,7 +172,7 @@ def test_photo_preview_is_bounded_and_document_unchanged(tmp_path):
     data = BytesIO()
     source.save(data, format="PNG")
     session = Session(workspace=tmp_path)
-    session.create("photo.pix", 4000, 3000)
+    session.create("photo.vixl", 4000, 3000)
     session.import_image(data.getvalue())
     before = session.inspect()
     for width, height, budget in ((1024, 1024, 1048576), (2048, 1024, 65536)):
@@ -185,24 +185,24 @@ def test_photo_preview_is_bounded_and_document_unchanged(tmp_path):
 
 
 def test_typed_ai_preserves_arguments_and_undo(tmp_path, monkeypatch):
-    import pix.ai
+    import vixl.ai
 
     backend = FakeProvider()
-    monkeypatch.setattr(pix.ai, "provider", lambda _: backend)
+    monkeypatch.setattr(vixl.ai, "provider", lambda _: backend)
     session = Session(workspace=tmp_path)
-    session.create("a.pix", 16, 16)
-    server = __import__("pix.mcp_tools", fromlist=["build_server"]).build_server(session)
+    session.create("a.vixl", 16, 16)
+    server = __import__("vixl.mcp_tools", fromlist=["build_server"]).build_server(session)
 
     async def call(tool_name, **arguments):
         return await server.call_tool(tool_name, arguments)
 
-    asyncio.run(call("pix_ai_generate", prompt="literal --seed 99", seed=7, name="--logo"))
+    asyncio.run(call("vixl_ai_generate", prompt="literal --seed 99", seed=7, name="--logo"))
     assert backend.requests[-1][1]["prompt"] == "literal --seed 99"
     assert backend.requests[-1][1]["seed"] == 7
     ident = session.inspect()["layers"][0]["id"]
-    asyncio.run(call("pix_ai_remove_background", layer="--logo"))
+    asyncio.run(call("vixl_ai_remove_background", layer="--logo"))
     assert session.inspect()["layers"][0]["mask"]["enabled"]
-    asyncio.run(call("pix_ai_regenerate", layer=ident, prompt="again", seed=8))
+    asyncio.run(call("vixl_ai_regenerate", layer=ident, prompt="again", seed=8))
     assert len(session.inspect()["layers"]) == 1
     assert session.inspect()["layers"][0]["id"] == ident
     session.history("undo")
@@ -218,7 +218,7 @@ def test_real_mcp_empty_workspace_to_export(tmp_path):
     async def run():
         params = StdioServerParameters(
             command=sys.executable,
-            args=["-m", "pix", "mcp", "--workspace", str(tmp_path)],
+            args=["-m", "vixl", "mcp", "--workspace", str(tmp_path)],
             env=os.environ.copy(),
         )
         async with stdio_client(params) as (read, write):
@@ -230,33 +230,33 @@ def test_real_mcp_empty_workspace_to_export(tmp_path):
                     assert not result.isError, result
                     return result
 
-                await call("pix_workspace_list")
-                await call("pix_document_create", path="a.pix", width=20, height=10)
-                await call("pix_import_image", path="photo.png", name="photo")
-                result = await call("pix_operations_apply", operations=[{"type": "move", "x": 1}])
+                await call("vixl_workspace_list")
+                await call("vixl_document_create", path="a.vixl", width=20, height=10)
+                await call("vixl_import_image", path="photo.png", name="photo")
+                result = await call("vixl_operations_apply", operations=[{"type": "move", "x": 1}])
                 assert len(result.model_dump_json()) < 1500
-                await call("pix_render_preview", max_width=16, max_height=16)
-                await call("pix_export_file", path="out.png")
-                await call("pix_document_create", path="b.pix", width=10, height=10)
-                await call("pix_document_open", path="a.pix")
-                failed = await client.call_tool("pix_import_image", {"path": "../outside.png"})
+                await call("vixl_render_preview", max_width=16, max_height=16)
+                await call("vixl_export_file", path="out.png")
+                await call("vixl_document_create", path="b.vixl", width=10, height=10)
+                await call("vixl_document_open", path="a.vixl")
+                failed = await client.call_tool("vixl_import_image", {"path": "../outside.png"})
                 assert failed.isError
-                await call("pix_document_inspect", target="photo")
+                await call("vixl_document_inspect", target="photo")
 
     asyncio.run(run())
     assert Image.open(tmp_path / "out.png").size == (20, 10)
-    assert Project.load(tmp_path / "a.pix").layer()["x"] == 1
+    assert Project.load(tmp_path / "a.vixl").layer()["x"] == 1
 
 
 def test_relative_initial_project_and_external_change_during_read(tmp_path, monkeypatch):
     directory = tmp_path / "sub"
     directory.mkdir()
     p = Project(16, 16)
-    p.save(directory / "a.pix")
+    p.save(directory / "a.vixl")
     monkeypatch.chdir(tmp_path)
-    session = Session("sub/a.pix")
+    session = Session("sub/a.vixl")
     with session.project() as cached:
-        other = Project.load(directory / "a.pix")
+        other = Project.load(directory / "a.vixl")
         other.apply({"type": "solid", "name": "external"})
         other.save()
         assert not cached.state["layers"]
@@ -265,7 +265,7 @@ def test_relative_initial_project_and_external_change_during_read(tmp_path, monk
 
 def test_workspace_export_profile_with_filename_format(tmp_path):
     session = Session(workspace=tmp_path)
-    session.create("a.pix", 1200, 800)
+    session.create("a.vixl", 1200, 800)
     # Filename format takes precedence; the profile still supplies its size/quality.
     result = export_file(session, "social.png", profile="instagram")
     with Image.open(tmp_path / "social.png") as image:

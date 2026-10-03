@@ -9,24 +9,24 @@ import tempfile
 
 def main():
     multiprocessing.freeze_support()
-    if sys.argv[1:] == ["--pix-healthcheck"]:
-        from pix import Project, __version__
-        from pix.interfaces import create_app, mcp_server
-        from pix.cli import dispatch
+    if sys.argv[1:] == ["--vixl-healthcheck"]:
+        from vixl import Project, __version__
+        from vixl.interfaces import create_app, mcp_server
+        from vixl.cli import dispatch
 
         assert dispatch(["--version"])[0] == __version__
 
-        with tempfile.TemporaryDirectory(prefix="pix-health-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="vixl-health-") as tmp:
             p = Project(64, 32)
-            p.apply({"type": "text", "text": "Pix", "size": 16})
+            p.apply({"type": "text", "text": "Vixl", "size": 16})
             assert p.export(format="PNG").startswith(b"\x89PNG")
-            path = Path(tmp) / "health.pix"
+            path = Path(tmp) / "health.vixl"
             p.save(path)
             create_app(path)
             mcp_server(path)
         print(json.dumps({"ok": True, "version": __version__}))
         return 0
-    from pix.cli import main as cli
+    from vixl.cli import main as cli
 
     return cli()
 

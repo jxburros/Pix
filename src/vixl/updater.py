@@ -1,6 +1,6 @@
 """Managed-install updater. Standard library only: also bundled in the stable launcher.
 
-Trust root: HTTPS GitHub releases in jxburros/Pix. Projects cannot supply update URLs.
+Trust root: HTTPS GitHub releases in jxburros/Vixl. Projects cannot supply update URLs.
 """
 
 from contextlib import contextmanager
@@ -19,7 +19,7 @@ import urllib.parse
 import urllib.request
 import zipfile
 
-REPOSITORY = "jxburros/Pix"
+REPOSITORY = "jxburros/Vixl"
 API = f"https://api.github.com/repos/{REPOSITORY}/releases/latest"
 PROTOCOL = 1
 INTERVAL = 24 * 60 * 60
@@ -44,22 +44,22 @@ def version(value):
 
 
 def root_path():
-    value = os.environ.get("PIX_MANAGED_ROOT")
+    value = os.environ.get("VIXL_MANAGED_ROOT")
     require(
         value,
-        "Automatic updates require the Windows installer. Python/pip installs remain managed by pip; download Pix-Setup from https://github.com/jxburros/Pix/releases/latest",
+        "Automatic updates require the Windows installer. Python/pip installs remain managed by pip; download Vixl-Setup from https://github.com/jxburros/Vixl/releases/latest",
     )
     root = Path(value).resolve()
     require(
         (root / "install.json").is_file(),
-        "Managed installation metadata is missing. Run the installer to repair Pix.",
+        "Managed installation metadata is missing. Run the installer to repair Vixl.",
     )
     return root
 
 
 def atomic_json(path, value):
     path = Path(path)
-    fd, temporary = tempfile.mkstemp(prefix=".pix-", suffix=".tmp", dir=path.parent)
+    fd, temporary = tempfile.mkstemp(prefix=".vixl-", suffix=".tmp", dir=path.parent)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as stream:
             json.dump(value, stream, allow_nan=False, indent=2)
@@ -95,7 +95,7 @@ def locked(root, timeout=15):
                 break
             except OSError:
                 if time.monotonic() >= deadline:
-                    raise UpdateError("Another Pix update is in progress; try again shortly.")
+                    raise UpdateError("Another Vixl update is in progress; try again shortly.")
                 time.sleep(0.05)
         try:
             yield
@@ -124,28 +124,28 @@ def read_state(root):
         require(isinstance(state["auto"], bool), "Invalid update preference")
         return state
     except (OSError, ValueError, KeyError, TypeError) as exc:
-        raise UpdateError("Cannot read installation metadata; run the installer to repair Pix.") from exc
+        raise UpdateError("Cannot read installation metadata; run the installer to repair Vixl.") from exc
 
 
 def executable(root, release):
     version(release)
-    return Path(root) / "versions" / release / "pix-engine.exe"
+    return Path(root) / "versions" / release / "vixl-engine.exe"
 
 
 def child_environment(root):
     env = os.environ.copy()
-    env["PIX_MANAGED_ROOT"] = str(Path(root).resolve())
+    env["VIXL_MANAGED_ROOT"] = str(Path(root).resolve())
     # Each frozen process owns its own PyInstaller runtime, not its parent's extraction folder.
     env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
     return env
 
 
 def probe(root, release, folder=None):
-    exe = Path(folder) / "pix-engine.exe" if folder else executable(root, release)
-    require(exe.is_file(), f"Pix {release} is incomplete")
+    exe = Path(folder) / "vixl-engine.exe" if folder else executable(root, release)
+    require(exe.is_file(), f"Vixl {release} is incomplete")
     try:
         result = subprocess.run(
-            [str(exe), "--pix-healthcheck"],
+            [str(exe), "--vixl-healthcheck"],
             capture_output=True,
             timeout=45,
             env=child_environment(root),
@@ -154,10 +154,10 @@ def probe(root, release, folder=None):
         payload = json.loads(result.stdout)
         require(
             result.returncode == 0 and payload.get("version") == release and payload.get("ok") is True,
-            f"Pix {release} did not pass its startup health check",
+            f"Vixl {release} did not pass its startup health check",
         )
     except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
-        raise UpdateError(f"Pix {release} could not start; the previous version was kept") from exc
+        raise UpdateError(f"Vixl {release} could not start; the previous version was kept") from exc
 
 
 def initialize(root, release):
@@ -178,7 +178,7 @@ def initialize(root, release):
         old = state.get("current")
         require(
             not old or version(release) >= version(old),
-            "Installer downgrades are disabled; use pix update --rollback instead",
+            "Installer downgrades are disabled; use vixl update --rollback instead",
         )
         if old != release:
             state["previous"] = old
@@ -216,7 +216,7 @@ def download(url, destination, limit=MAX_DOWNLOAD):
     request = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "Pix-Updater/1",
+            "User-Agent": "Vixl-Updater/1",
             "Accept": "application/vnd.github+json"
             if urllib.parse.urlparse(url).hostname == "api.github.com"
             else "application/octet-stream",
@@ -242,7 +242,7 @@ def download(url, destination, limit=MAX_DOWNLOAD):
 
 
 def json_download(url):
-    with tempfile.TemporaryDirectory(prefix="pix-release-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="vixl-release-") as tmp:
         dest = Path(tmp) / "response.json"
         download(url, dest, 1024 * 1024)
         try:
@@ -257,17 +257,17 @@ def latest():
     release = json_download(API)
     require(
         release.get("draft") is False and release.get("prerelease") is False,
-        "Only published stable releases can update Pix",
+        "Only published stable releases can update Vixl",
     )
     tag = release.get("tag_name", "")
     require(isinstance(tag, str) and tag.startswith("v"), "Unexpected release tag")
     release_version = tag[1:]
     version(release_version)
     names = {a.get("name") for a in release.get("assets", []) if isinstance(a, dict)}
-    bundle = f"pix-{release_version}-windows-x64.zip"
-    require({bundle, "pix-update.json"} <= names, "This release does not contain a Windows update")
+    bundle = f"vixl-{release_version}-windows-x64.zip"
+    require({bundle, "vixl-update.json"} <= names, "This release does not contain a Windows update")
     base = f"https://github.com/{REPOSITORY}/releases/download/{tag}/"
-    manifest = json_download(base + "pix-update.json")
+    manifest = json_download(base + "vixl-update.json")
     require(
         manifest.get("protocol") == PROTOCOL
         and manifest.get("version") == release_version
@@ -328,7 +328,7 @@ def extract_bundle(archive, destination):
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     with z.open(entry) as source, dest.open("wb") as output:
                         shutil.copyfileobj(source, output)
-        require((destination / "pix-engine.exe").is_file(), "Update archive has no Pix runtime")
+        require((destination / "vixl-engine.exe").is_file(), "Update archive has no Vixl runtime")
     except (zipfile.BadZipFile, OSError, RuntimeError) as exc:
         raise UpdateError("Update archive could not be safely extracted") from exc
 
@@ -352,7 +352,7 @@ def update(root, check_only=False, automatic=False):
             return {**result, "status": "available"}
         if automatic and state.get("rejected") == target:
             return {**result, "status": "previously-rejected"}
-        with tempfile.TemporaryDirectory(prefix="pix-download-", dir=root / "update-work") as tmp:
+        with tempfile.TemporaryDirectory(prefix="vixl-download-", dir=root / "update-work") as tmp:
             archive = Path(tmp) / "update.zip"
             digest, size = download(release["url"], archive)
             require(
@@ -379,7 +379,7 @@ def update(root, check_only=False, automatic=False):
         return {
             **result,
             "status": "ready",
-            "message": "Update verified. It will activate the next time you launch pix.",
+            "message": "Update verified. It will activate the next time you launch vixl.",
         }
 
 
@@ -419,7 +419,7 @@ def rollback(root):
     return {
         "current": target,
         "automatic": False,
-        "message": "Rolled back for subsequent launches. Automatic updates are off; use pix updates on to re-enable.",
+        "message": "Rolled back for subsequent launches. Automatic updates are off; use vixl updates on to re-enable.",
     }
 
 
@@ -438,13 +438,13 @@ def prepare_launch(root, allow_updates=True):
         exe = executable(root, state["current"])
         if not exe.is_file():
             previous = state.get("previous")
-            require(previous, "Installed runtime is missing; run the installer to repair Pix")
+            require(previous, "Installed runtime is missing; run the installer to repair Vixl")
             probe(root, previous)
             state.update(
                 current=previous,
                 pending=None,
                 auto=False,
-                last_error="Recovered the previous runtime; run the installer to repair Pix",
+                last_error="Recovered the previous runtime; run the installer to repair Vixl",
             )
             atomic_json(Path(root) / "install.json", state)
             exe = executable(root, previous)

@@ -5,7 +5,7 @@ import io
 from pathlib import Path
 
 from .assets import read_bounded, add_image, decode
-from .errors import require, PixError
+from .errors import require, VixlError
 
 
 def export_screens(project, directory, *, scales=(1, 2), boards=None, **options):
@@ -27,7 +27,7 @@ def export_screens(project, directory, *, scales=(1, 2), boards=None, **options)
     # Validate all renders before publishing any output; keep memory bounded to one image.
     import tempfile
 
-    with tempfile.TemporaryDirectory(prefix="pix-screens-") as staging:
+    with tempfile.TemporaryDirectory(prefix="vixl-screens-") as staging:
         for i, (name, scale, _) in enumerate(jobs):
             project.export(Path(staging) / f"{i}.png", artboard=name, scale=scale, format="PNG", **options)
         root.mkdir(parents=True, exist_ok=True)
@@ -54,7 +54,7 @@ def render_data(project, csv_path, directory, *, variables=None, **options):
             )
             rows.append(row)
     except csv.Error as exc:
-        raise PixError("invalid_data", str(exc)) from exc
+        raise VixlError("invalid_data", str(exc)) from exc
     require(rows, "CSV contains no data rows")
     root = Path(directory)
     destinations = [root / f"{i + 1:04d}.png" for i in range(len(rows))]
@@ -64,7 +64,7 @@ def render_data(project, csv_path, directory, *, variables=None, **options):
     }
     import tempfile
 
-    with tempfile.TemporaryDirectory(prefix="pix-data-") as staging:
+    with tempfile.TemporaryDirectory(prefix="vixl-data-") as staging:
         for i, row in enumerate(rows):
             candidate = project.clone()
             values = {**row, **(variables or {})}

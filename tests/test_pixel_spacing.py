@@ -7,10 +7,10 @@ import jsonschema
 from PIL import Image
 import pytest
 
-from pix import Project
-from pix.errors import PixError
-from pix.model import Limits
-from pix.animation import animation_bytes
+from vixl import Project
+from vixl.errors import VixlError
+from vixl.model import Limits
+from vixl.animation import animation_bytes
 
 
 def solid(p, name, x=0, y=0, width=10, height=10):
@@ -42,9 +42,9 @@ def test_spacing_intent_tolerance_unequal_sizes_and_no_mutation():
     assert not p.measure_spacing(targets=["footer", "body", "header"], tolerance=0)["passed"]
     assert p.measure_spacing(targets=["header", "body"], expected=10, tolerance=0)["passed"]
     assert p.manifest() == before
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         p.measure_spacing()
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         p.measure_spacing(around="body", before="footer", after="header")
 
 
@@ -58,7 +58,7 @@ def test_spacing_reports_overlap_not_false_equal_and_parent_scope():
     p.apply({"type": "group", "name": "g", "targets": ["a", "b", "c"]})
     result = p.measure_spacing(targets=["a", "b"], axis="horizontal")
     assert result["scope"] == p.layer("g")["id"]
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         p.measure_spacing(targets=["g", "a"])
 
 
@@ -76,7 +76,7 @@ def test_spacing_uses_constraints_artboard_and_rejects_hidden():
     assert p.measure_spacing(targets=["a", "b", "c"])["passed"]
     assert not p.measure_spacing(targets=["a", "b", "c"], artboard="short")["passed"]
     p.apply({"type": "hide", "target": "b"})
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         p.measure_spacing(targets=["a", "b"])
 
 
@@ -134,7 +134,7 @@ def test_pixel_editing_grid_palette_and_nearest_scale():
 def test_invalid_pixels_roll_back(op):
     p = sprite()
     before = deepcopy(p.manifest())
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         p.apply(op)
     assert p.manifest() == before
 
@@ -153,8 +153,8 @@ def test_animation_capture_edit_apply_reorder_delete_persistence(tmp_path):
     summary = p.inspect_animation()
     assert summary["total_duration"] == 200 and summary["loop"] == 2
     assert [f["name"] for f in summary["frames"]] == ["spark", "idle"]
-    p.save(tmp_path / "sprite.pix")
-    loaded = Project.load(tmp_path / "sprite.pix")
+    p.save(tmp_path / "sprite.vixl")
+    loaded = Project.load(tmp_path / "sprite.vixl")
     assert loaded.render_frame("spark").getpixel((0, 0)) == (0, 0, 255, 255)
     loaded.apply({"type": "frame-delete", "name": "spark"})
     assert len(loaded.inspect_animation()["frames"]) == 1
@@ -185,7 +185,7 @@ def test_animation_exports_timing_transparency_and_metadata(tmp_path, format):
         assert image.info["duration"] == 80
         assert image.convert("RGBA").getpixel((0, 0)) == (0, 0, 255, 255)
     assert p.manifest() == before
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         p.export_animation(path, format=format)
 
 
@@ -200,24 +200,24 @@ def test_animation_duration_size_limits_and_compact_changes():
         {"type": "frame-apply", "name": "missing"},
     ):
         before = deepcopy(p.state)
-        with pytest.raises(PixError):
+        with pytest.raises(VixlError):
             p.apply(op)
         assert p.state == before
     p.apply({"type": "canvas", "width": 5, "height": 5})
-    with pytest.raises(PixError, match="same canvas size"):
+    with pytest.raises(VixlError, match="same canvas size"):
         p.apply({"type": "frame-save", "name": "bad-size"})
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         p.render_frame("idle", scale=1.5)
     p.limits = Limits(max_pixels=32)
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         animation_bytes(p, scale=2)
 
 
 def test_cli_spacing_and_pixel_animation(tmp_path, monkeypatch):
-    from pix.cli import dispatch
+    from vixl.cli import dispatch
 
     monkeypatch.chdir(tmp_path)
-    dispatch(["new", "4x4", "-o", "sprite.pix"])
+    dispatch(["new", "4x4", "-o", "sprite.vixl"])
     dispatch(["pixel-art", "--name", "sprite", "--width", "4", "--height", "4"])
     dispatch(["pixel-draw", "sprite", "pixel", "0", "0", "--color", "#"])
     dispatch(["frame-save", "idle", "--duration", "100"])
@@ -232,24 +232,24 @@ def test_cli_spacing_and_pixel_animation(tmp_path, monkeypatch):
     solid(p, "a", y=0)
     solid(p, "b", y=20)
     solid(p, "c", y=50)
-    p.save("spacing.pix")
-    result, _ = dispatch(["--project", "spacing.pix", "spacing", "--targets", "a", "b", "c"])
+    p.save("spacing.vixl")
+    result, _ = dispatch(["--project", "spacing.vixl", "spacing", "--targets", "a", "b", "c"])
     assert not result["passed"]
-    with pytest.raises(PixError, match="inconsistent"):
-        dispatch(["--project", "spacing.pix", "spacing", "--targets", "a", "b", "c", "--check"])
+    with pytest.raises(VixlError, match="inconsistent"):
+        dispatch(["--project", "spacing.vixl", "spacing", "--targets", "a", "b", "c", "--check"])
 
 
 def test_mcp_and_rest_pixel_animation_and_spacing(tmp_path):
-    from pix.interfaces import mcp_server, create_app
+    from vixl.interfaces import mcp_server, create_app
     from fastapi.testclient import TestClient
 
     p = sprite()
-    p.save(tmp_path / "sprite.pix")
+    p.save(tmp_path / "sprite.vixl")
 
     async def run():
-        server = mcp_server(tmp_path / "sprite.pix")
+        server = mcp_server(tmp_path / "sprite.vixl")
         tools = {t.name: t for t in await server.list_tools()}
-        schema = tools["pix_operations_apply"].inputSchema
+        schema = tools["vixl_operations_apply"].inputSchema
         jsonschema.validate(
             {
                 "operations": [
@@ -260,26 +260,26 @@ def test_mcp_and_rest_pixel_animation_and_spacing(tmp_path):
             schema,
         )
         assert {
-            "pix_measure_spacing",
-            "pix_pixels_inspect",
-            "pix_animation_inspect",
-            "pix_export_animation",
-            "pix_animation_preview",
+            "vixl_measure_spacing",
+            "vixl_pixels_inspect",
+            "vixl_animation_inspect",
+            "vixl_export_animation",
+            "vixl_animation_preview",
         } <= tools.keys()
         await server.call_tool(
-            "pix_operations_apply", {"operations": [{"type": "frame-save", "name": "idle"}]}
+            "vixl_operations_apply", {"operations": [{"type": "frame-save", "name": "idle"}]}
         )
-        assert await server.call_tool("pix_pixels_inspect", {"target": "sprite"})
-        assert await server.call_tool("pix_animation_preview", {"name": "idle"})
-        await server.call_tool("pix_export_animation", {"path": "sprite.gif"})
+        assert await server.call_tool("vixl_pixels_inspect", {"target": "sprite"})
+        assert await server.call_tool("vixl_animation_preview", {"name": "idle"})
+        await server.call_tool("vixl_export_animation", {"path": "sprite.gif"})
         from mcp.server.fastmcp.exceptions import ToolError
 
         with pytest.raises(ToolError, match="outside the workspace"):
-            await server.call_tool("pix_export_animation", {"path": "../outside.gif"})
+            await server.call_tool("vixl_export_animation", {"path": "../outside.gif"})
 
     asyncio.run(run())
     assert (tmp_path / "sprite.gif").exists()
-    client = TestClient(create_app(tmp_path / "sprite.pix"))
+    client = TestClient(create_app(tmp_path / "sprite.vixl"))
     assert client.get("/pixels/sprite").json()["rows"][0] == "...."
     assert client.get("/animation").json()["frames"][0]["name"] == "idle"
     response = client.get("/animation/frame/idle?scale=2")

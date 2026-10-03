@@ -23,5 +23,5 @@ jobs:
       - run: python -m pip wheel . --no-deps --wheel-dir dist
       - uses: actions/upload-artifact@v4
         with:
-          name: pix-${{ matrix.os }}-${{ matrix.python }}
+          name: vixl-${{ matrix.os }}-${{ matrix.python }}
           path: dist/*.whl

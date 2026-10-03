@@ -19,34 +19,34 @@ async def verify(executable, workspace):
     params = StdioServerParameters(
         command=executable,
         args=["mcp", "--workspace", str(workspace)],
-        env={**os.environ, "PIX_NO_UPDATE": "1"},
+        env={**os.environ, "VIXL_NO_UPDATE": "1"},
     )
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as client:
             await client.initialize()
             tools = {tool.name: tool for tool in (await client.list_tools()).tools}
-            assert tools["pix_operations_apply"].inputSchema["properties"]["operations"]["items"]["oneOf"]
-            assert "pix_ai_remove_background" in tools and "pix_ai" not in tools
+            assert tools["vixl_operations_apply"].inputSchema["properties"]["operations"]["items"]["oneOf"]
+            assert "vixl_ai_remove_background" in tools and "vixl_ai" not in tools
 
             async def call(tool, **arguments):
                 result = await client.call_tool(tool, arguments)
                 assert not result.isError, result
                 return result
 
-            await call("pix_document_create", path="new.pix", width=2400, height=1600)
-            await call("pix_import_image", path="input photo.jpg", name="photo")
-            result = await call("pix_operations_apply", operations=[{"type": "move", "x": 5}])
+            await call("vixl_document_create", path="new.vixl", width=2400, height=1600)
+            await call("vixl_import_image", path="input photo.jpg", name="photo")
+            result = await call("vixl_operations_apply", operations=[{"type": "move", "x": 5}])
             assert len(json.dumps(result.model_dump())) < 1500
-            result = await call("pix_render_preview", max_width=512, max_height=512, max_bytes=65536)
+            result = await call("vixl_render_preview", max_width=512, max_height=512, max_bytes=65536)
             data = base64.b64decode(result.content[0].data)
             assert len(data) <= 65536 and Image.open(BytesIO(data)).width <= 512
-            await call("pix_export_file", path="exported.png")
-            await call("pix_document_create", path="second.pix", width=16, height=16)
-            await call("pix_document_open", path="new.pix")
-            await call("pix_document_inspect", target="photo")
-            await call("pix_document_create", path="sprite.pix", width=4, height=4)
+            await call("vixl_export_file", path="exported.png")
+            await call("vixl_document_create", path="second.vixl", width=16, height=16)
+            await call("vixl_document_open", path="new.vixl")
+            await call("vixl_document_inspect", target="photo")
+            await call("vixl_document_create", path="sprite.vixl", width=4, height=4)
             await call(
-                "pix_operations_apply",
+                "vixl_operations_apply",
                 operations=[
                     {"type": "pixel-art", "name": "sprite", "width": 4, "height": 4},
                     {"type": "pixel-draw", "x": 0, "y": 0, "color": "#"},
@@ -55,18 +55,18 @@ async def verify(executable, workspace):
                     {"type": "frame-save", "name": "spark", "duration": 200},
                 ],
             )
-            await call("pix_pixels_inspect", target="sprite")
-            await call("pix_animation_preview", name="idle")
-            await call("pix_export_animation", path="sprite.gif", format="gif", scale=2)
-            await call("pix_export_animation", path="sprite.png", format="sheet", scale=2)
+            await call("vixl_pixels_inspect", target="sprite")
+            await call("vixl_animation_preview", name="idle")
+            await call("vixl_export_animation", path="sprite.gif", format="gif", scale=2)
+            await call("vixl_export_animation", path="sprite.png", format="sheet", scale=2)
             await call(
-                "pix_operations_apply",
+                "vixl_operations_apply",
                 operations=[
                     {"type": "solid", "name": "a", "width": 1, "height": 1},
                     {"type": "solid", "name": "b", "width": 1, "height": 1, "y": 2},
                 ],
             )
-            await call("pix_measure_spacing", targets=["a", "b"], expected=1, tolerance=0)
+            await call("vixl_measure_spacing", targets=["a", "b"], expected=1, tolerance=0)
     assert Image.open(workspace / "exported.png").size == (2400, 1600)
     assert Image.open(workspace / "sprite.gif").n_frames == 2
     assert Image.open(workspace / "sprite.png").size == (16, 8)
@@ -77,5 +77,5 @@ async def verify(executable, workspace):
 
 
 if __name__ == "__main__":
-    with tempfile.TemporaryDirectory(prefix="pix MCP workspace ") as directory:
+    with tempfile.TemporaryDirectory(prefix="vixl MCP workspace ") as directory:
         asyncio.run(verify(sys.argv[1], Path(directory)))

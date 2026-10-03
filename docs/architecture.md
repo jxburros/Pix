@@ -26,7 +26,7 @@ Snapshots preserve alternate history branches. Assets are content-addressed and 
 
 ## Resource policy
 
-Defaults (`pix.model.Limits`):
+Defaults (`vixl.model.Limits`):
 
 - 40 million pixels per canvas/layer; 16,384 pixels per dimension.
 - 512 layers; 256 effects per layer.
@@ -42,9 +42,9 @@ Defaults (`pix.model.Limits`):
 
 Archive members are validated and read in memory, never extracted; duplicate/unsafe entries, missing assets, bad checksums, cyclic history, unsupported format versions, and oversized expanded content are rejected. Images are decoded with decompression-bomb handling and explicit dimensions. Do not disable these limits for unknown files.
 
-Scripts compile only supported Pix operations; they do not run shell/Python code. Assertions use a parsed comparison grammar. JSON operations are schema-checked, including unknown-field rejection and finite-number checks. Service clients cannot request arbitrary host file imports, linked files, custom font paths, or Python plugins. Linked files are opt-in for the CLI/Python API and remain external dependencies.
+Scripts compile only supported Vixl operations; they do not run shell/Python code. Assertions use a parsed comparison grammar. JSON operations are schema-checked, including unknown-field rejection and finite-number checks. Service clients cannot request arbitrary host file imports, linked files, custom font paths, or Python plugins. Linked files are opt-in for the CLI/Python API and remain external dependencies.
 
-Plugins and local provider configuration are trusted code/configuration. A provider may transmit the current rendered image, selection, text and document metadata to its configured service. Credentials are referenced by environment-variable name and not copied into Pix's request provenance. Provider metadata should contain provenance only. HTTP adapters preserve TLS verification, do not follow redirects, and do not fetch result URLs. ComfyUI files are fetched only from the configured server.
+Plugins and local provider configuration are trusted code/configuration. A provider may transmit the current rendered image, selection, text and document metadata to its configured service. Credentials are referenced by environment-variable name and not copied into Vixl's request provenance. Provider metadata should contain provenance only. HTTP adapters preserve TLS verification, do not follow redirects, and do not fetch result URLs. ComfyUI files are fetched only from the configured server.
 
 The REST service defaults to loopback, validates host headers without a token, requires a token for non-loopback binding, and limits bodies before JSON parsing. Use a TLS reverse proxy for remote use. API tokens do not create a multi-tenant permission system. Image/font codecs and optional plugins still execute native/Python code in-process; a container remains the appropriate boundary for hostile inputs.
 

@@ -4,7 +4,7 @@ import operator
 from pathlib import Path
 import re
 
-from .errors import PixError, require
+from .errors import VixlError, require
 from .model import finite
 from .render import BLENDS, color, resolve_layout
 
@@ -155,7 +155,7 @@ def assert_rule(project, rule):
     if match:
         try:
             layer = project.layer(match[1])
-        except PixError:
+        except VixlError:
             return False
         if match[2] == "exists":
             return True
@@ -174,7 +174,7 @@ def assert_rule(project, rule):
         target, field = rest.rsplit(".", 1)
         try:
             layer = project.layer(target)
-        except PixError:
+        except VixlError:
             return False
         if namespace == "text" and layer["type"] != "text":
             return False

@@ -9,7 +9,7 @@ from .design_schema import TYPES
 def compile_design(cmd, args):
     if cmd not in TYPES:
         return None
-    p = Parser(prog=f"pix {cmd}")
+    p = Parser(prog=f"vixl {cmd}")
     if cmd == "shape":
         p.add_argument("shape")
         for key in ("fill", "stroke"):

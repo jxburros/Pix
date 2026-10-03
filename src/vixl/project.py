@@ -11,7 +11,7 @@ import tempfile
 import zipfile
 
 from .assets import decode, read_bounded
-from .errors import PixError, require
+from .errors import VixlError, require
 from .model import Limits, new_state, uid
 
 
@@ -42,7 +42,7 @@ class Project:
         for layer in self.state["layers"]:
             if target in (layer["id"], layer["name"]):
                 return layer
-        raise PixError(
+        raise VixlError(
             "layer_not_found",
             f"Layer {target!r} does not exist",
             requested=target,
@@ -70,7 +70,7 @@ class Project:
             return next(x for x in state["layers"] if x["id"] == ident)
         return {
             **state,
-            "version": "0.9.0",
+            "version": "0.10.0",
             "head": self.head,
             "branch": self.current_branch,
             "history_count": len(self.nodes),
@@ -112,7 +112,7 @@ class Project:
             try:
                 execute(candidate, deepcopy(operation))
             except (KeyError, TypeError, ValueError, OverflowError) as exc:
-                raise PixError("invalid_operation", f"Malformed operation: {exc}") from exc
+                raise VixlError("invalid_operation", f"Malformed operation: {exc}") from exc
         from .validation import check_state
 
         check_state(candidate, candidate.state)
@@ -261,7 +261,7 @@ class Project:
     def manifest(self):
         return {
             "format_version": 1,
-            "pix_version": "0.9.0",
+            "vixl_version": "0.10.0",
             "state": self.state,
             "nodes": self.nodes,
             "head": self.head,
@@ -276,9 +276,9 @@ class Project:
     def save(self, path=None):
         from filelock import FileLock
 
-        require(path or self.path, "Provide a .pix project path")
+        require(path or self.path, "Provide a .vixl project path")
         path = Path(path or self.path).resolve()
-        require(path.suffix == ".pix", "Project filenames must end in .pix")
+        require(path.suffix == ".vixl", "Project filenames must end in .vixl")
         path.parent.mkdir(parents=True, exist_ok=True)
         with FileLock(str(path) + ".lock", timeout=10, is_singleton=True):
             if self.path == path and self._revision and path.exists():
@@ -381,4 +381,4 @@ class Project:
                 project._revision = revision
                 return project
         except (KeyError, TypeError, ValueError, RecursionError, zipfile.BadZipFile) as exc:
-            raise PixError("invalid_project", f"Malformed Pix archive: {exc}") from exc
+            raise VixlError("invalid_project", f"Malformed Vixl archive: {exc}") from exc

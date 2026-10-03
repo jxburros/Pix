@@ -17,7 +17,7 @@ from PIL import Image, ImageOps
 
 from .assets import add_image, decode, png_bytes, read_bounded
 from .commands import Parser, dimensions
-from .errors import PixError, require
+from .errors import VixlError, require
 from .render import resolve_layout
 
 MAX_RESPONSE = 64 * 1024 * 1024
@@ -32,7 +32,7 @@ def image_response(payload, project):
     try:
         data = base64.b64decode(payload.split(",", 1)[-1], validate=True)
     except ValueError as exc:
-        raise PixError("provider_error", "Provider returned invalid base64") from exc
+        raise VixlError("provider_error", "Provider returned invalid base64") from exc
     return decode(data, project.limits)
 
 
@@ -41,7 +41,7 @@ class HTTPProvider:
 
     def __init__(self, name, config):
         self.name, self.config = name, config
-        self.url = config.get("url") or os.environ.get(config.get("url_env", "PIX_AI_URL"), "")
+        self.url = config.get("url") or os.environ.get(config.get("url_env", "VIXL_AI_URL"), "")
         require(
             urlparse(self.url).scheme in ("http", "https") and urlparse(self.url).hostname,
             f"Configure a valid URL for provider {name}",
@@ -72,7 +72,7 @@ class HTTPProvider:
                         )
                     return bytes(body)
         except httpx.HTTPError as exc:
-            raise PixError(
+            raise VixlError(
                 "provider_error", f"Provider {self.name} request failed ({type(exc).__name__})"
             ) from exc
 
@@ -82,7 +82,7 @@ class HTTPProvider:
             require(isinstance(result, dict), "Provider must return a JSON object", "provider_error")
             return result
         except ValueError as exc:
-            raise PixError("provider_error", "Provider returned invalid JSON") from exc
+            raise VixlError("provider_error", "Provider returned invalid JSON") from exc
 
     def invoke(self, capability, request):
         return self.json("POST", "/" + capability, json=request)
@@ -107,7 +107,7 @@ class OpenAIProvider(HTTPProvider):
                     from io import BytesIO
 
                     mask = Image.open(BytesIO(base64.b64decode(request["mask"]))).convert("L")
-                    # Pix uses white=edit. OpenAI uses alpha=0 for editable areas.
+                    # Vixl uses white=edit. OpenAI uses alpha=0 for editable areas.
                     converted = Image.new("RGBA", mask.size, "white")
                     converted.putalpha(ImageOps.invert(mask))
                     files["mask"] = ("mask.png", png_bytes(converted), "image/png")
@@ -131,7 +131,7 @@ class OpenAIProvider(HTTPProvider):
         )
         if capability == "plan":
             prompt = (
-                "Return JSON {operations: [...]} using only the documented Pix operations. Never request files, URLs, or code execution. "
+                "Return JSON {operations: [...]} using only the documented Vixl operations. Never request files, URLs, or code execution. "
                 + json.dumps({k: v for k, v in request.items() if k != "source_image"})
             )
         else:
@@ -160,7 +160,7 @@ class OpenAIProvider(HTTPProvider):
         try:
             return json.loads(result["choices"][0]["message"]["content"])
         except (KeyError, IndexError, ValueError) as exc:
-            raise PixError("provider_error", "Invalid model JSON response") from exc
+            raise VixlError("provider_error", "Invalid model JSON response") from exc
 
 
 class Automatic1111Provider(HTTPProvider):
@@ -228,7 +228,7 @@ class ComfyUIProvider(HTTPProvider):
                 uploaded = self.json(
                     "POST",
                     "/upload/image",
-                    files={"image": (f"pix-{field}.png", base64.b64decode(request[field]), "image/png")},
+                    files={"image": (f"vixl-{field}.png", base64.b64decode(request[field]), "image/png")},
                     data={"overwrite": "false"},
                 )
                 values[field] = (uploaded.get("subfolder", "") + "/" + uploaded["name"]).lstrip("/")
@@ -275,17 +275,17 @@ class ComfyUIProvider(HTTPProvider):
                     "metadata": {"prompt_id": ident},
                 }
             time.sleep(0.5)
-        raise PixError("provider_timeout", "ComfyUI job timed out; it may still be running on the server")
+        raise VixlError("provider_timeout", "ComfyUI job timed out; it may still be running on the server")
 
 
 def provider(name=None):
-    config_file = Path(os.environ.get("PIX_PROVIDERS", "~/.config/pix/providers.json")).expanduser()
+    config_file = Path(os.environ.get("VIXL_PROVIDERS", "~/.config/vixl/providers.json")).expanduser()
     config = json.loads(read_bounded(config_file, 1024 * 1024)) if config_file.exists() else {}
     require(isinstance(config, dict), "Provider configuration must be a JSON object")
-    name = name or os.environ.get("PIX_AI_PROVIDER") or config.get("default")
+    name = name or os.environ.get("VIXL_AI_PROVIDER") or config.get("default")
     require(
         name,
-        "Configure a provider in ~/.config/pix/providers.json or set PIX_AI_PROVIDER",
+        "Configure a provider in ~/.config/vixl/providers.json or set VIXL_AI_PROVIDER",
         "provider_not_configured",
     )
     settings = config.get("providers", {}).get(name)
@@ -442,7 +442,7 @@ def record_ai(project, operation):
 
 
 def ai_command(project, cmd, args):
-    p = Parser(prog=f"pix {cmd}")
+    p = Parser(prog=f"vixl {cmd}")
     p.add_argument("words", nargs="*")
     for key in ("provider", "prompt", "negative-prompt", "size", "model", "mode", "selection"):
         p.add_argument("--" + key)

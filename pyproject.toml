@@ -3,8 +3,8 @@ requires = ["hatchling>=1.26"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pix-engine"
-version = "0.9.0"
+name = "vixl-engine"
+version = "0.10.0"
 description = "A programmable image-document engine for humans, scripts, and AI agents"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -16,10 +16,10 @@ mcp = ["mcp>=1.12,<2"]
 dev = ["pytest>=8,<10", "fastapi>=0.115,<1", "uvicorn>=0.30,<1", "mcp>=1.12,<2", "ruff>=0.12"]
 
 [project.scripts]
-pix = "pix.cli:main"
+vixl = "vixl.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/pix"]
+packages = ["src/vixl"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

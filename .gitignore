@@ -6,9 +6,9 @@ __pycache__/
 *.egg-info/
 dist/
 build/
-.pix-session.json
-*.pix.lock
-*.pix
+.vixl-session.json
+*.vixl.lock
+*.vixl
 .env
 
 examples/output/

@@ -3,7 +3,7 @@
 import argparse
 from pathlib import Path
 
-from pix import Project
+from vixl import Project
 
 
 def build(output):
@@ -49,7 +49,7 @@ def build(output):
             ]
         )
     project.apply({"type": "frame-apply", "name": "idle"})
-    project.save(output / "potion.pix")
+    project.save(output / "potion.vixl")
     project.export_animation(output / "potion.gif", scale=8)
     project.export_animation(output / "potion.apng", format="apng", scale=8)
     project.export_animation(output / "potion-sheet.png", format="sheet", columns=4)

@@ -5,13 +5,13 @@ import re
 import shlex
 from pathlib import Path
 
-from .errors import PixError, require
+from .errors import VixlError, require
 from .render import EFFECTS
 
 
 class Parser(argparse.ArgumentParser):
     def error(self, message):
-        raise PixError("usage_error", message)
+        raise VixlError("usage_error", message)
 
 
 def dimensions(value):
@@ -62,7 +62,7 @@ def compile_command(tokens):
     design = compile_design(cmd, args)
     if design is not None:
         return design
-    p = Parser(prog=f"pix {cmd}")
+    p = Parser(prog=f"vixl {cmd}")
     op = {"type": cmd}
     if cmd == "add":
         p.add_argument("path")
@@ -280,7 +280,7 @@ def compile_command(tokens):
             require(not overrides, "Preset save does not accept overrides")
         return {"type": f"preset-{action}", **{k: v for k, v in data.items() if v is not None}}
     else:
-        raise PixError("unknown_command", f"Unknown editing command: {cmd}. Run pix --help.")
+        raise VixlError("unknown_command", f"Unknown editing command: {cmd}. Run vixl --help.")
     return {**op, **{k: v for k, v in vars(p.parse_args(args)).items() if v is not None}}
 
 
@@ -301,6 +301,6 @@ def compile_script(path):
                     if field == "path" or candidate.is_file():
                         operation[field] = str(candidate)
             ops.append(operation)
-        except (PixError, ValueError) as exc:
-            raise PixError("script_error", f"{path}:{line_no}: {exc}") from exc
+        except (VixlError, ValueError) as exc:
+            raise VixlError("script_error", f"{path}:{line_no}: {exc}") from exc
     return ops

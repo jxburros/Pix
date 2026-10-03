@@ -1,8 +1,8 @@
-# Pix
+# Vixl
 ## Programmable, Scriptable, AI-Native Image Editing Engine
 
 **Status:** Concept / Product Specification
-**Working Name:** Pix
+**Working Name:** Vixl
 **Primary Interface:** Command Line
 **Secondary Interfaces:** Interactive shell, API, MCP/agent interface, future TUI/GUI
 **Core Philosophy:** A deterministic image-document engine designed equally for humans, scripts, and AI agents.
@@ -11,9 +11,9 @@
 
 # 1. Product Summary
 
-Pix is a command-line image editing application inspired by the document model of programs such as GIMP, but intentionally simpler, more programmable, and designed from the beginning for automation and AI.
+Vixl is a command-line image editing application inspired by the document model of programs such as GIMP, but intentionally simpler, more programmable, and designed from the beginning for automation and AI.
 
-Rather than attempting to recreate the full GIMP interface in a terminal, Pix treats image editing as a set of structured operations applied to a persistent editable document.
+Rather than attempting to recreate the full GIMP interface in a terminal, Vixl treats image editing as a set of structured operations applied to a persistent editable document.
 
 The basic model is:
 
@@ -31,7 +31,7 @@ Rendering
 Export
 ```
 
-Pix should support traditional image-editing operations while adding capabilities that are difficult or unnatural in conventional GUI image editors, including:
+Vixl should support traditional image-editing operations while adding capabilities that are difficult or unnatural in conventional GUI image editors, including:
 
 - deterministic command-line editing
 - structured machine-readable document state
@@ -45,7 +45,7 @@ Pix should support traditional image-editing operations while adding capabilitie
 - AI image generation and inpainting
 - first-class AI-agent control
 
-Pix should ultimately be considered an **image editing engine with a CLI**, rather than simply a CLI application.
+Vixl should ultimately be considered an **image editing engine with a CLI**, rather than simply a CLI application.
 
 This distinction allows the same engine to eventually power:
 
@@ -63,7 +63,7 @@ This distinction allows the same engine to eventually power:
 
 # 2. Product Vision
 
-Pix should occupy the space between:
+Vixl should occupy the space between:
 
 - GIMP
 - ImageMagick
@@ -74,7 +74,7 @@ Pix should occupy the space between:
 
 The goal is not to reproduce every feature available in professional graphics software.
 
-Instead, Pix should make the **most useful image editing concepts simple, composable, inspectable, automatable, and reproducible.**
+Instead, Vixl should make the **most useful image editing concepts simple, composable, inspectable, automatable, and reproducible.**
 
 A core principle is:
 
@@ -108,14 +108,14 @@ Graphical Interface
 Image Editor
 ```
 
-Pix should support this model instead:
+Vixl should support this model instead:
 
 ```text
 Human / Script / AI Agent
             ↓
      Structured Operations
             ↓
-       Pix Engine
+       Vixl Engine
             ↓
      Editable Document
             ↓
@@ -138,15 +138,15 @@ Traditional editing operations should not depend on hidden application state.
 
 ## 4.2 Inspectable
 
-Users and software should be able to ask Pix what exists in a document.
+Users and software should be able to ask Vixl what exists in a document.
 
 Example:
 
 ```bash
-pix inspect --json
+vixl inspect --json
 ```
 
-Pix should provide structured information about:
+Vixl should provide structured information about:
 
 - canvas
 - layers
@@ -169,7 +169,7 @@ Anything that can be done interactively should be possible through commands or A
 
 ## 4.4 Nondestructive Where Practical
 
-Pix should prefer document operations over permanently modifying source imagery.
+Vixl should prefer document operations over permanently modifying source imagery.
 
 ---
 
@@ -207,7 +207,7 @@ Rendering / Imaging Engine
 
 # 5. Target Users
 
-Pix could serve several distinct audiences.
+Vixl could serve several distinct audiences.
 
 ### Developers
 
@@ -253,20 +253,20 @@ Additional concepts can build on this foundation.
 
 # 7. Project Files
 
-Pix should use its own editable project format.
+Vixl should use its own editable project format.
 
 Example:
 
 ```text
-poster.pix
+poster.vixl
 ```
 
-A `.pix` file could internally be a ZIP archive.
+A `.vixl` file could internally be a ZIP archive.
 
 Example:
 
 ```text
-poster.pix
+poster.vixl
 │
 ├── project.json
 │
@@ -323,25 +323,25 @@ This architecture separates:
 Example workflow:
 
 ```bash
-pix new 1920x1080 --background "#111111"
+vixl new 1920x1080 --background "#111111"
 
-pix add photo.jpg --name portrait
+vixl add photo.jpg --name portrait
 
-pix resize portrait --width 900
+vixl resize portrait --width 900
 
-pix move portrait --x 510 --y 40
+vixl move portrait --x 510 --y 40
 
-pix brightness portrait +10
+vixl brightness portrait +10
 
-pix contrast portrait +15
+vixl contrast portrait +15
 
-pix add logo.png --name logo
+vixl add logo.png --name logo
 
-pix move logo --x 60 --y 920
+vixl move logo --x 60 --y 920
 
-pix opacity logo 0.75
+vixl opacity logo 0.75
 
-pix export output.png
+vixl export output.png
 ```
 
 ---
@@ -353,40 +353,40 @@ Commands should use consistent namespaces.
 Example:
 
 ```bash
-pix layer add image.png
-pix layer remove portrait
-pix layer rename portrait hero
-pix layer duplicate hero
-pix layer move hero 300 100
-pix layer scale hero 800 600
-pix layer rotate hero 15
+vixl layer add image.png
+vixl layer remove portrait
+vixl layer rename portrait hero
+vixl layer duplicate hero
+vixl layer move hero 300 100
+vixl layer scale hero 800 600
+vixl layer rotate hero 15
 ```
 
 Common commands can receive short aliases:
 
 ```bash
-pix add image.png
-pix rm portrait
-pix mv portrait 300 100
-pix scale portrait 800x600
-pix rotate portrait 15
+vixl add image.png
+vixl rm portrait
+vixl mv portrait 300 100
+vixl scale portrait 800x600
+vixl rotate portrait 15
 ```
 
 ---
 
 # 10. Current Layer
 
-Pix should support the concept of an active layer.
+Vixl should support the concept of an active layer.
 
 Example:
 
 ```bash
-pix select-layer portrait
+vixl select-layer portrait
 
-pix resize --width 800
-pix contrast +15
-pix saturation -10
-pix blur 4
+vixl resize --width 800
+vixl contrast +15
+vixl saturation -10
+vixl blur 4
 ```
 
 This prevents every command from requiring a layer name.
@@ -396,13 +396,13 @@ This prevents every command from requiring a layer name.
 # 11. Status Command
 
 ```bash
-pix status
+vixl status
 ```
 
 Example output:
 
 ```text
-Project: poster.pix
+Project: poster.vixl
 Canvas: 1920 × 1080
 Color: RGBA / 8-bit
 
@@ -422,7 +422,7 @@ History:
 # 12. Layer Listing
 
 ```bash
-pix layers
+vixl layers
 ```
 
 Example:
@@ -438,7 +438,7 @@ ID   NAME          SIZE        POS        OPACITY   VISIBLE
 Machine-readable output should also be available.
 
 ```bash
-pix layers --json
+vixl layers --json
 ```
 
 ---
@@ -457,12 +457,12 @@ Raster layers should support:
 Basic operations:
 
 ```bash
-pix layer add photo.jpg
-pix layer duplicate portrait
-pix layer hide portrait
-pix layer show portrait
-pix layer remove portrait
-pix layer rename portrait hero
+vixl layer add photo.jpg
+vixl layer duplicate portrait
+vixl layer hide portrait
+vixl layer show portrait
+vixl layer remove portrait
+vixl layer rename portrait hero
 ```
 
 ---
@@ -470,37 +470,37 @@ pix layer rename portrait hero
 # 14. Layer Ordering
 
 ```bash
-pix layer raise portrait
-pix layer lower portrait
+vixl layer raise portrait
+vixl layer lower portrait
 
-pix layer top logo
-pix layer bottom background
+vixl layer top logo
+vixl layer bottom background
 ```
 
 Possible explicit form:
 
 ```bash
-pix layer reorder portrait --above background
+vixl layer reorder portrait --above background
 ```
 
 ---
 
 # 15. Transformations
 
-Pix should support:
+Vixl should support:
 
 ```bash
-pix move portrait 100 200
+vixl move portrait 100 200
 
-pix scale portrait 50%
+vixl scale portrait 50%
 
-pix resize portrait 800x600
+vixl resize portrait 800x600
 
-pix rotate portrait 15
+vixl rotate portrait 15
 
-pix flip portrait horizontal
+vixl flip portrait horizontal
 
-pix flip portrait vertical
+vixl flip portrait vertical
 ```
 
 Additional transforms can eventually include:
@@ -519,16 +519,16 @@ CLI editing becomes much easier when semantic alignment is supported.
 Examples:
 
 ```bash
-pix align logo center
-pix align logo top
-pix align logo top-right
-pix align portrait center-x
+vixl align logo center
+vixl align logo top
+vixl align logo top-right
+vixl align portrait center-x
 ```
 
 Margins:
 
 ```bash
-pix align logo top-right --margin 40
+vixl align logo top-right --margin 40
 ```
 
 This should be preferred over requiring exact coordinates for routine layout.
@@ -540,27 +540,27 @@ This should be preferred over requiring exact coordinates for routine layout.
 Initial selections should include:
 
 ```bash
-pix select rect 100 100 500 300
+vixl select rect 100 100 500 300
 
-pix select ellipse 400 200 300 300
+vixl select ellipse 400 200 300 300
 
-pix select all
+vixl select all
 
-pix select none
+vixl select none
 
-pix select invert
+vixl select invert
 ```
 
 Color selection:
 
 ```bash
-pix select color "#ffffff" --tolerance 15
+vixl select color "#ffffff" --tolerance 15
 ```
 
 Alpha selection:
 
 ```bash
-pix select alpha portrait
+vixl select alpha portrait
 ```
 
 Operations should respect the current selection where appropriate.
@@ -568,8 +568,8 @@ Operations should respect the current selection where appropriate.
 Example:
 
 ```bash
-pix select rect 0 0 1920 300
-pix blur 12
+vixl select rect 0 0 1920 300
+vixl blur 12
 ```
 
 ---
@@ -579,17 +579,17 @@ pix blur 12
 Example operations:
 
 ```bash
-pix mask create portrait
+vixl mask create portrait
 
-pix mask from-selection portrait
+vixl mask from-selection portrait
 
-pix mask invert portrait
+vixl mask invert portrait
 
-pix mask disable portrait
+vixl mask disable portrait
 
-pix mask enable portrait
+vixl mask enable portrait
 
-pix mask delete portrait
+vixl mask delete portrait
 ```
 
 Masks should remain ordinary grayscale image data internally.
@@ -603,12 +603,12 @@ This allows AI-generated masks and manually generated masks to use the same syst
 Core adjustments:
 
 ```bash
-pix brightness +20
-pix contrast -10
-pix saturation +15
-pix hue 30
-pix exposure 0.5
-pix gamma 1.1
+vixl brightness +20
+vixl contrast -10
+vixl saturation +15
+vixl hue 30
+vixl exposure 0.5
+vixl gamma 1.1
 ```
 
 Additional adjustments may include:
@@ -627,22 +627,22 @@ Additional adjustments may include:
 Core filters:
 
 ```bash
-pix blur 8
-pix sharpen 2
-pix grayscale
-pix invert
-pix posterize 6
-pix threshold 128
+vixl blur 8
+vixl sharpen 2
+vixl grayscale
+vixl invert
+vixl posterize 6
+vixl threshold 128
 ```
 
 Advanced syntax:
 
 ```bash
-pix filter gaussian-blur --radius 12
+vixl filter gaussian-blur --radius 12
 
-pix filter noise --amount 0.08
+vixl filter noise --amount 0.08
 
-pix filter vignette --radius 0.7 --strength 0.4
+vixl filter vignette --radius 0.7 --strength 0.4
 ```
 
 A standardized filter interface will allow new filters to be added without cluttering the root CLI namespace.
@@ -668,7 +668,7 @@ Individual effects can then be changed or disabled.
 Example:
 
 ```bash
-pix effects portrait
+vixl effects portrait
 ```
 
 ```text
@@ -681,11 +681,11 @@ pix effects portrait
 Potential operations:
 
 ```bash
-pix effect disable portrait 4
+vixl effect disable portrait 4
 
-pix effect set portrait 2 --amount 20
+vixl effect set portrait 2 --amount 20
 
-pix effect remove portrait 3
+vixl effect remove portrait 3
 ```
 
 ---
@@ -697,7 +697,7 @@ Text should be supported early.
 Example:
 
 ```bash
-pix text add "FRIENDS AND FLAMES" \
+vixl text add "FRIENDS AND FLAMES" \
   --font "Inter Bold" \
   --size 96 \
   --x center \
@@ -709,19 +709,19 @@ The text should remain editable.
 Example:
 
 ```bash
-pix text title --text "FRIENDS & FLAMES"
+vixl text title --text "FRIENDS & FLAMES"
 
-pix text title --size 120
+vixl text title --size 120
 
-pix text title --align center
+vixl text title --align center
 
-pix text title --color "#ffffff"
+vixl text title --color "#ffffff"
 ```
 
 Rasterization:
 
 ```bash
-pix rasterize title
+vixl rasterize title
 ```
 
 Before rasterization, the underlying text content and formatting should remain available.
@@ -743,7 +743,7 @@ Initial blend modes should include common options:
 Example:
 
 ```bash
-pix blend texture multiply
+vixl blend texture multiply
 ```
 
 ---
@@ -753,7 +753,7 @@ pix blend texture multiply
 Running:
 
 ```bash
-pix
+vixl
 ```
 
 should open an interactive editing environment.
@@ -761,8 +761,8 @@ should open an interactive editing environment.
 Example:
 
 ```text
-PIX 0.1
-poster.pix · 1920×1080 · 6 layers
+VIXL 0.1
+poster.vixl · 1920×1080 · 6 layers
 
 poster > layers
 
@@ -793,13 +793,13 @@ This provides a more natural interface for humans while using exactly the same u
 Basic history:
 
 ```bash
-pix undo
+vixl undo
 
-pix undo 3
+vixl undo 3
 
-pix redo
+vixl redo
 
-pix history
+vixl history
 ```
 
 Example:
@@ -819,38 +819,38 @@ Example:
 Users should be able to create named states.
 
 ```bash
-pix checkpoint initial-layout
+vixl checkpoint initial-layout
 
-pix checkpoint finished-color
+vixl checkpoint finished-color
 ```
 
 They can later return to them.
 
 ```bash
-pix checkout initial-layout
+vixl checkout initial-layout
 ```
 
 ---
 
 # 27. Branchable Editing History
 
-Pix should eventually treat creative history similarly to lightweight version control.
+Vixl should eventually treat creative history similarly to lightweight version control.
 
 Example:
 
 ```bash
-pix checkpoint before-color
+vixl checkpoint before-color
 
-pix brightness +15
-pix contrast +20
+vixl brightness +15
+vixl contrast +20
 
-pix branch vivid
+vixl branch vivid
 
-pix checkout before-color
+vixl checkout before-color
 
-pix saturation -30
+vixl saturation -30
 
-pix branch muted
+vixl branch muted
 ```
 
 History:
@@ -864,16 +864,16 @@ main
 Possible command:
 
 ```bash
-pix branches
+vixl branches
 ```
 
 Comparison:
 
 ```bash
-pix compare vivid muted
+vixl compare vivid muted
 ```
 
-Pix could render both versions side by side or generate separate outputs.
+Vixl could render both versions side by side or generate separate outputs.
 
 ---
 
@@ -884,44 +884,44 @@ A sequence of operations can be saved.
 Example workflow:
 
 ```bash
-pix contrast +12
-pix saturation -8
-pix temperature +300
-pix grain 0.07
-pix vignette 0.15
+vixl contrast +12
+vixl saturation -8
+vixl temperature +300
+vixl grain 0.07
+vixl vignette 0.15
 
-pix preset save gritty-photo
+vixl preset save gritty-photo
 ```
 
 Application:
 
 ```bash
-pix preset apply gritty-photo portrait
+vixl preset apply gritty-photo portrait
 ```
 
 Inspection:
 
 ```bash
-pix preset show gritty-photo
+vixl preset show gritty-photo
 ```
 
 Parameter override:
 
 ```bash
-pix preset apply gritty-photo \
+vixl preset apply gritty-photo \
   --set grain=0.03
 ```
 
 ---
 
-# 29. Pix Scripts
+# 29. Vixl Scripts
 
-Pix should eventually support script files.
+Vixl should eventually support script files.
 
 Example:
 
 ```text
-portrait-cleanup.pixscript
+portrait-cleanup.vixlscript
 ```
 
 Possible contents:
@@ -936,10 +936,10 @@ sharpen 1.2
 Execution:
 
 ```bash
-pix run portrait-cleanup.pixscript
+vixl run portrait-cleanup.vixlscript
 ```
 
-A Pix script should ideally compile into normal operations rather than use an independent execution engine.
+A Vixl script should ideally compile into normal operations rather than use an independent execution engine.
 
 ---
 
@@ -950,28 +950,28 @@ CLI applications are particularly suited to bulk processing.
 Example:
 
 ```bash
-pix batch ./photos/*.jpg \
-  --run portrait-cleanup.pixscript \
+vixl batch ./photos/*.jpg \
+  --run portrait-cleanup.vixlscript \
   --output ./processed/
 ```
 
 Project-wide operations:
 
 ```bash
-pix each layer --type image -- saturation -10
+vixl each layer --type image -- saturation -10
 ```
 
 Pattern filtering:
 
 ```bash
-pix each layer --name "card-*" -- resize 750x1050
+vixl each layer --name "card-*" -- resize 750x1050
 ```
 
 ---
 
 # 31. Parameterized Designs
 
-Pix projects should optionally define variables.
+Vixl projects should optionally define variables.
 
 Example:
 
@@ -987,19 +987,19 @@ The document can reference these values.
 Example:
 
 ```bash
-pix variable set title "Permission"
+vixl variable set title "Permission"
 ```
 
 Rendering with overrides:
 
 ```bash
-pix render \
+vixl render \
   --set title="Permission" \
   --set cover=permission.jpg \
   --out permission-poster.png
 ```
 
-This turns a Pix document into a reusable design template.
+This turns a Vixl document into a reusable design template.
 
 Potential applications include:
 
@@ -1016,12 +1016,12 @@ Potential applications include:
 
 # 32. Layout Constraints
 
-Pix should eventually allow positions to be defined relative to other objects rather than fixed pixel coordinates.
+Vixl should eventually allow positions to be defined relative to other objects rather than fixed pixel coordinates.
 
 Example:
 
 ```bash
-pix constrain logo \
+vixl constrain logo \
   --right canvas.right-40 \
   --top canvas.top+40
 ```
@@ -1029,7 +1029,7 @@ pix constrain logo \
 Text:
 
 ```bash
-pix constrain title \
+vixl constrain title \
   --center-x canvas \
   --below portrait 60
 ```
@@ -1045,7 +1045,7 @@ This enables responsive design behavior.
 With constraints enabled:
 
 ```bash
-pix canvas resize 1080x1080
+vixl canvas resize 1080x1080
 ```
 
 could reflow the design automatically.
@@ -1053,11 +1053,11 @@ could reflow the design automatically.
 Potential presets:
 
 ```bash
-pix canvas preset instagram-square
+vixl canvas preset instagram-square
 
-pix canvas preset youtube-thumbnail
+vixl canvas preset youtube-thumbnail
 
-pix canvas preset story
+vixl canvas preset story
 ```
 
 The same design could therefore produce multiple formats.
@@ -1066,20 +1066,20 @@ The same design could therefore produce multiple formats.
 
 # 34. Validation
 
-Pix should allow rules to be applied to projects.
+Vixl should allow rules to be applied to projects.
 
 Examples:
 
 ```bash
-pix assert canvas.width == 1920
+vixl assert canvas.width == 1920
 
-pix assert canvas.height == 1080
+vixl assert canvas.height == 1080
 
-pix assert layer.logo.exists
+vixl assert layer.logo.exists
 
-pix assert layer.logo.bounds within canvas
+vixl assert layer.logo.bounds within canvas
 
-pix assert text.title.font-size >= 48
+vixl assert text.title.font-size >= 48
 ```
 
 ---
@@ -1089,7 +1089,7 @@ pix assert text.title.font-size >= 48
 A reusable validation profile could be run:
 
 ```bash
-pix validate instagram-post
+vixl validate instagram-post
 ```
 
 Example output:
@@ -1117,7 +1117,7 @@ Commands should generally support:
 Example:
 
 ```bash
-pix inspect portrait --json
+vixl inspect portrait --json
 ```
 
 Output:
@@ -1136,7 +1136,7 @@ Output:
 Document inspection:
 
 ```bash
-pix describe --json
+vixl describe --json
 ```
 
 Possible output:
@@ -1166,12 +1166,12 @@ This should be considered an essential feature rather than a convenience option.
 
 # 37. Rendering
 
-Pix needs the ability to produce temporary renders without exporting or modifying the project.
+Vixl needs the ability to produce temporary renders without exporting or modifying the project.
 
 Example:
 
 ```bash
-pix render --preview preview.png
+vixl render --preview preview.png
 ```
 
 AI agents can use this for iterative inspection.
@@ -1199,27 +1199,27 @@ Render again
 Basic output:
 
 ```bash
-pix export image.png
+vixl export image.png
 ```
 
 Options:
 
 ```bash
-pix export image.jpg --quality 90
+vixl export image.jpg --quality 90
 
-pix export image.webp --quality 85
+vixl export image.webp --quality 85
 
-pix export image.png --scale 2x
+vixl export image.png --scale 2x
 ```
 
 Future export profiles may include:
 
 ```bash
-pix export --profile instagram
+vixl export --profile instagram
 
-pix export --profile discord
+vixl export --profile discord
 
-pix export --profile print
+vixl export --profile print
 ```
 
 ---
@@ -1247,13 +1247,13 @@ Vision features understand existing imagery.
 Examples:
 
 ```bash
-pix detect objects
+vixl detect objects
 
-pix describe image
+vixl describe image
 
-pix OCR
+vixl OCR
 
-pix detect faces
+vixl detect faces
 ```
 
 Most importantly, vision can create selections.
@@ -1265,37 +1265,37 @@ Most importantly, vision can create selections.
 Traditional selection:
 
 ```bash
-pix select rect ...
+vixl select rect ...
 ```
 
 Semantic selection:
 
 ```bash
-pix select object person
+vixl select object person
 
-pix select object sky
+vixl select object sky
 
-pix select object face
+vixl select object face
 
-pix select object text
+vixl select object text
 
-pix select object "the red car"
+vixl select object "the red car"
 ```
 
 The AI subsystem determines where the object is.
 
-Pix converts the result into an ordinary selection mask.
+Vixl converts the result into an ordinary selection mask.
 
 Afterward, normal deterministic commands work.
 
 Example:
 
 ```bash
-pix select object sky
+vixl select object sky
 
-pix saturation -40
+vixl saturation -40
 
-pix brightness -15
+vixl brightness -15
 ```
 
 This division is important:
@@ -1303,19 +1303,19 @@ This division is important:
 ```text
 AI determines WHERE.
 
-Pix determines WHAT happens there.
+Vixl determines WHAT happens there.
 ```
 
 ---
 
 # 42. AI Level 2: Reasoning
 
-Pix can allow a model to translate natural-language intent into ordinary Pix operations.
+Vixl can allow a model to translate natural-language intent into ordinary Vixl operations.
 
 Example:
 
 ```bash
-pix ask "make the logo about 20% smaller and put it in the upper right with a 40px margin"
+vixl ask "make the logo about 20% smaller and put it in the upper right with a 40px margin"
 ```
 
 The AI might produce:
@@ -1341,23 +1341,23 @@ Apply? [Y/n]
 Automatic execution:
 
 ```bash
-pix ask "..." --apply
+vixl ask "..." --apply
 ```
 
 The AI therefore **does not directly manipulate pixels**.
 
-It translates natural language into Pix's deterministic intermediate operation format.
+It translates natural language into Vixl's deterministic intermediate operation format.
 
 ---
 
 # 43. AI Level 3: Image Generation
 
-Pix should allow external image-generation systems to act as operation providers.
+Vixl should allow external image-generation systems to act as operation providers.
 
 Example:
 
 ```bash
-pix generate \
+vixl generate \
   --prompt "foggy forest at night" \
   --size 1024x1024 \
   --provider comfyui \
@@ -1373,15 +1373,15 @@ Selections can become masks sent to image models.
 Example:
 
 ```bash
-pix select rect 400 200 500 500
+vixl select rect 400 200 500 500
 
-pix generate \
+vixl generate \
   --prompt "replace this area with a broken neon sign" \
   --mode inpaint \
   --selection current
 ```
 
-Pix packages:
+Vixl packages:
 
 ```text
 source image
@@ -1393,7 +1393,7 @@ generation parameters
 
 The provider returns the generated result.
 
-Pix inserts it into the document.
+Vixl inserts it into the document.
 
 ---
 
@@ -1402,10 +1402,10 @@ Pix inserts it into the document.
 Example:
 
 ```bash
-pix ai extend --right 500
+vixl ai extend --right 500
 ```
 
-Pix could:
+Vixl could:
 
 1. enlarge the canvas
 2. create a generation mask
@@ -1420,7 +1420,7 @@ Pix could:
 Example:
 
 ```bash
-pix ai background-remove portrait
+vixl ai background-remove portrait
 ```
 
 Ideally, this returns a mask rather than immediately deleting pixels.
@@ -1434,7 +1434,7 @@ The resulting mask remains editable.
 Example:
 
 ```bash
-pix ai upscale portrait --2x
+vixl ai upscale portrait --2x
 ```
 
 The provider could be:
@@ -1443,18 +1443,18 @@ The provider could be:
 - remote
 - plugin-based
 
-Pix itself should not need to know the underlying model implementation.
+Vixl itself should not need to know the underlying model implementation.
 
 ---
 
 # 48. AI Generation Provider Interface
 
-Pix should not implement image-generation models itself.
+Vixl should not implement image-generation models itself.
 
 Instead:
 
 ```text
-Pix
+Vixl
   ↓
 Generation Provider Interface
   ↓
@@ -1520,7 +1520,7 @@ parameters
 generation_metadata
 ```
 
-Pix then converts the result into a normal document asset.
+Vixl then converts the result into a normal document asset.
 
 ---
 
@@ -1544,7 +1544,7 @@ Created: 2026-10-02
 Possible inspection:
 
 ```bash
-pix ai info roses
+vixl ai info roses
 ```
 
 ---
@@ -1554,7 +1554,7 @@ pix ai info roses
 Because generation parameters are preserved:
 
 ```bash
-pix ai regenerate roses
+vixl ai regenerate roses
 ```
 
 could recreate the generation.
@@ -1562,13 +1562,13 @@ could recreate the generation.
 Alternative seed:
 
 ```bash
-pix ai regenerate roses --seed random
+vixl ai regenerate roses --seed random
 ```
 
 Alternative prompt:
 
 ```bash
-pix ai regenerate roses \
+vixl ai regenerate roses \
   --prompt "white roses spilling across a wooden table"
 ```
 
@@ -1578,24 +1578,24 @@ This turns generation into reproducible editable state instead of treating it as
 
 # 53. Agent-Native Workflow
 
-Pix should provide explicit capabilities for autonomous agents.
+Vixl should provide explicit capabilities for autonomous agents.
 
 A typical workflow:
 
 ```text
 Agent
   ↓
-pix describe --json
+vixl describe --json
   ↓
 Agent understands layer structure
   ↓
-pix render --preview
+vixl render --preview
   ↓
 Agent sees result
   ↓
 Agent submits operations
   ↓
-Pix changes project
+Vixl changes project
   ↓
 Agent validates
 ```
@@ -1631,7 +1631,7 @@ Example:
 Possible interface:
 
 ```bash
-pix apply operations.json
+vixl apply operations.json
 ```
 
 ---
@@ -1643,7 +1643,7 @@ AI agents and automation systems should be able to inspect proposed consequences
 Example:
 
 ```bash
-pix apply operations.json --dry-run
+vixl apply operations.json --dry-run
 ```
 
 Result:
@@ -1666,19 +1666,19 @@ Multiple operations should optionally apply atomically.
 Example:
 
 ```bash
-pix transaction begin
+vixl transaction begin
 
-pix scale logo 80%
-pix align logo top-right
-pix margin logo 40
+vixl scale logo 80%
+vixl align logo top-right
+vixl margin logo 40
 
-pix transaction commit
+vixl transaction commit
 ```
 
 If one step fails:
 
 ```bash
-pix transaction rollback
+vixl transaction rollback
 ```
 
 This will be particularly useful for automated agents.
@@ -1687,24 +1687,24 @@ This will be particularly useful for automated agents.
 
 # 57. stdin / stdout Support
 
-Pix should behave like a good command-line tool.
+Vixl should behave like a good command-line tool.
 
 Possible examples:
 
 ```bash
-pix layers --json | jq ...
+vixl layers --json | jq ...
 ```
 
 and:
 
 ```bash
-cat operations.json | pix apply -
+cat operations.json | vixl apply -
 ```
 
 Potential image pipelines:
 
 ```bash
-cat photo.png | pix convert --grayscale > result.png
+cat photo.png | vixl convert --grayscale > result.png
 ```
 
 where appropriate.
@@ -1713,7 +1713,7 @@ where appropriate.
 
 # 58. Human-Friendly Instruction Files
 
-Eventually Pix could support a friendly command language.
+Eventually Vixl could support a friendly command language.
 
 Example:
 
@@ -1727,7 +1727,7 @@ move logo bottom-right margin 60
 export cover.png
 ```
 
-Pix could parse this into canonical operations.
+Vixl could parse this into canonical operations.
 
 However, the canonical operation format should always remain underneath this syntax.
 
@@ -1821,7 +1821,7 @@ API
 AI
 GUI
 TUI
-Pix script
+Vixl script
 ```
 
 ---
@@ -1951,7 +1951,7 @@ For a serious long-term project:
 
 > **Rust core + provider-based integrations**
 
-Pix could later expose:
+Vixl could later expose:
 
 ```text
 C API
@@ -1966,7 +1966,7 @@ AI experiments can still be prototyped separately in Python.
 
 # 66. Relationship to ImageMagick
 
-Pix should not position itself as simply replacing ImageMagick.
+Vixl should not position itself as simply replacing ImageMagick.
 
 ImageMagick generally follows:
 
@@ -1978,7 +1978,7 @@ transformation pipeline
 output image
 ```
 
-Pix follows:
+Vixl follows:
 
 ```text
 editable document
@@ -1998,18 +1998,18 @@ ImageMagick:
 magick input.jpg -resize 800x800 -blur 0x4 output.jpg
 ```
 
-Pix:
+Vixl:
 
 ```bash
-pix open poster.pix
+vixl open poster.vixl
 
-pix select-layer portrait
+vixl select-layer portrait
 
-pix resize --width 800
+vixl resize --width 800
 
-pix blur 4
+vixl blur 4
 
-pix save
+vixl save
 ```
 
 The project remains editable afterward.
@@ -2018,7 +2018,7 @@ The project remains editable afterward.
 
 # 67. Relationship to GIMP
 
-Pix takes inspiration from concepts common in GIMP:
+Vixl takes inspiration from concepts common in GIMP:
 
 - layers
 - masks
@@ -2036,7 +2036,7 @@ The primary differentiation is:
 GIMP:
 graphic editor with automation capabilities
 
-Pix:
+Vixl:
 programmable document engine with editing interfaces
 ```
 
@@ -2044,7 +2044,7 @@ programmable document engine with editing interfaces
 
 # 68. Explicit Non-Goals for Initial Releases
 
-Pix should initially avoid trying to implement:
+Vixl should initially avoid trying to implement:
 
 - professional painting brushes
 - tablet-pressure systems
@@ -2059,7 +2059,7 @@ Pix should initially avoid trying to implement:
 - desktop publishing
 - full GUI parity with GIMP
 
-These features dramatically increase complexity without strengthening Pix's primary advantage.
+These features dramatically increase complexity without strengthening Vixl's primary advantage.
 
 ---
 
@@ -2070,7 +2070,7 @@ The first usable version should prove the document and operation architecture.
 ### MVP Features
 
 - create/open/save projects
-- `.pix` document format
+- `.vixl` document format
 - raster layers
 - layer ordering
 - layer naming
@@ -2104,7 +2104,7 @@ Focus on automation.
 
 Add:
 
-- Pix scripts
+- Vixl scripts
 - batch processing
 - presets
 - checkpoints
@@ -2146,7 +2146,7 @@ Add:
 - background masking
 - image descriptions
 
-These should use provider interfaces so Pix does not depend on one specific model.
+These should use provider interfaces so Vixl does not depend on one specific model.
 
 ---
 
@@ -2190,7 +2190,7 @@ Add:
 Once the engine is mature, multiple front ends become possible.
 
 ```text
-Pix Core
+Vixl Core
 │
 ├── CLI
 ├── Interactive shell
@@ -2253,7 +2253,7 @@ The GUI would submit the same operations as the CLI.
 
 # 78. AI Server Studio Integration
 
-Pix could fit naturally into an AI orchestration environment.
+Vixl could fit naturally into an AI orchestration environment.
 
 An AI agent could receive tools such as:
 
@@ -2277,34 +2277,34 @@ This would allow an AI to construct and revise visual assets without needing des
 
 # 79. MCP Interface
 
-A future MCP server could expose Pix operations directly.
+A future MCP server could expose Vixl operations directly.
 
 Potential tool families:
 
 ```text
-pix.document.*
-pix.layer.*
-pix.selection.*
-pix.mask.*
-pix.effect.*
-pix.text.*
-pix.render.*
-pix.ai.*
-pix.history.*
-pix.validate.*
+vixl.document.*
+vixl.layer.*
+vixl.selection.*
+vixl.mask.*
+vixl.effect.*
+vixl.text.*
+vixl.render.*
+vixl.ai.*
+vixl.history.*
+vixl.validate.*
 ```
 
 For example:
 
 ```text
-pix.layer.move
+vixl.layer.move
 ```
 
 could receive:
 
 ```json
 {
-  "project": "poster.pix",
+  "project": "poster.vixl",
   "layer": "logo",
   "x": 120,
   "y": 50
@@ -2315,7 +2315,7 @@ could receive:
 
 # 80. Plugin Architecture
 
-Pix should eventually allow third-party extensions.
+Vixl should eventually allow third-party extensions.
 
 Possible plugin categories:
 
@@ -2338,7 +2338,7 @@ Plugins should interact with public interfaces rather than manipulate internal s
 
 AI and plugin systems introduce additional risks.
 
-Pix should consider:
+Vixl should consider:
 
 - project path sandboxing
 - limits on plugin filesystem access
@@ -2351,7 +2351,7 @@ Pix should consider:
 - huge canvas allocations
 - untrusted project files
 
-Scripts should ideally consist of Pix operations rather than unrestricted shell code.
+Scripts should ideally consist of Vixl operations rather than unrestricted shell code.
 
 ---
 
@@ -2362,7 +2362,7 @@ Automated systems should be able to specify limits.
 Examples:
 
 ```bash
-pix --max-memory 4GB ...
+vixl --max-memory 4GB ...
 ```
 
 Potential limits include:
@@ -2448,7 +2448,7 @@ Name: portrait
 Humans can reference:
 
 ```bash
-pix opacity portrait 0.8
+vixl opacity portrait 0.8
 ```
 
 Software can reference:
@@ -2491,18 +2491,18 @@ This improves reproducibility.
 
 # 87. Embedded vs Linked Assets
 
-Pix could eventually allow both.
+Vixl could eventually allow both.
 
 Embedded:
 
 ```bash
-pix add photo.jpg
+vixl add photo.jpg
 ```
 
 Linked:
 
 ```bash
-pix add photo.jpg --linked
+vixl add photo.jpg --linked
 ```
 
 A linked layer updates if the external source file changes.
@@ -2516,7 +2516,7 @@ This is useful for automated design pipelines.
 Possible command:
 
 ```bash
-pix dependencies
+vixl dependencies
 ```
 
 Output:
@@ -2541,7 +2541,7 @@ AI Providers:
 
 # 89. Reproducibility
 
-Pix should strive to make a document reproducible wherever possible.
+Vixl should strive to make a document reproducible wherever possible.
 
 A project could retain:
 
@@ -2552,12 +2552,12 @@ A project could retain:
 - model names
 - seeds
 - operation history
-- Pix version
+- Vixl version
 
 Possible command:
 
 ```bash
-pix reproduce --check
+vixl reproduce --check
 ```
 
 which identifies missing dependencies.
@@ -2569,13 +2569,13 @@ which identifies missing dependencies.
 A project could expose:
 
 ```bash
-pix manifest
+vixl manifest
 ```
 
 Example:
 
 ```text
-Pix Version: 0.6.2
+Vixl Version: 0.6.2
 Canvas: 1920×1080
 Layers: 12
 Fonts: 3
@@ -2589,7 +2589,7 @@ History Entries: 84
 
 # 91. Headless Operation
 
-Pix should never require a graphical display.
+Vixl should never require a graphical display.
 
 Everything important should work:
 
@@ -2612,9 +2612,9 @@ Projects can be validated and rendered during software builds.
 Example:
 
 ```bash
-pix validate assets/social.pix
+vixl validate assets/social.vixl
 
-pix render assets/social.pix \
+vixl render assets/social.vixl \
   --set version=$APP_VERSION \
   --out dist/social.png
 ```
@@ -2625,17 +2625,17 @@ This makes visual assets part of reproducible software workflows.
 
 # 93. Template Ecosystem
 
-Eventually `.pix` files could function as reusable templates.
+Eventually `.vixl` files could function as reusable templates.
 
 Examples:
 
 ```text
-album-announcement.pix
-youtube-thumbnail.pix
-game-card.pix
-social-post.pix
-product-card.pix
-poster.pix
+album-announcement.vixl
+youtube-thumbnail.vixl
+game-card.vixl
+social-post.vixl
+product-card.vixl
+poster.vixl
 ```
 
 Users could supply variables and assets without understanding the complete design.
@@ -2660,7 +2660,7 @@ rendered
 
 by both humans and software.
 
-Pix could therefore become something closer to:
+Vixl could therefore become something closer to:
 
 > **Git + ImageMagick + a layer-based image editor + an AI tool interface**
 
@@ -2670,7 +2670,7 @@ without needing the complexity of a full professional desktop graphics suite.
 
 # 95. One-Sentence Product Definition
 
-> **Pix is a deterministic, programmable, AI-native image document engine that provides layer-based editing, automation, generative-image integration, and agent control through a simple command-line interface.**
+> **Vixl is a deterministic, programmable, AI-native image document engine that provides layer-based editing, automation, generative-image integration, and agent control through a simple command-line interface.**
 
 ---
 
@@ -2678,7 +2678,7 @@ without needing the complexity of a full professional desktop graphics suite.
 
 Traditional image editors are optimized around people manipulating graphical interfaces.
 
-Pix treats image editing as structured data.
+Vixl treats image editing as structured data.
 
 Create layers, make selections, transform images, edit text, apply effects, build reusable templates, branch creative versions, validate designs, automate thousands of assets, or allow AI agents to manipulate projects directly.
 
@@ -2690,11 +2690,11 @@ Everything remains part of an inspectable, editable, reproducible document.
 
 # 97. Guiding Rule
 
-When deciding whether a feature belongs in Pix, the question should be:
+When deciding whether a feature belongs in Vixl, the question should be:
 
 > **Does this become substantially more useful when image editing is programmable, reproducible, or controlled by software?**
 
-If yes, it is probably a strong fit for Pix.
+If yes, it is probably a strong fit for Vixl.
 
 If its primary value depends on a sophisticated graphical user interface, it is probably not an early priority.
 

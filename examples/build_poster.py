@@ -1,8 +1,8 @@
-"""Generate the README poster and an editable template using only the Pix engine."""
+"""Generate the README poster and an editable template using only the Vixl engine."""
 
 import argparse
 from pathlib import Path
-from pix import Project
+from vixl import Project
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--output", default="examples/output")
@@ -18,7 +18,7 @@ ops = [
     {
         "type": "text",
         "name": "brand",
-        "text": "PIX  /  FIELD NOTES",
+        "text": "VIXL  /  FIELD NOTES",
         "size": 22,
         "x": 64,
         "y": 58,
@@ -123,7 +123,7 @@ ops += [
 ]
 p.apply(ops)
 p.checkpoint("finished-layout")
-p.save(out / "after-hours.pix")
+p.save(out / "after-hours.vixl")
 p.export(out / "after-hours.png")
 p.export(out / "late-edition.png", variables={"event": "LATE\nEDITION", "date": "NOV 13  /  DOORS 22:00"})
 print(f"Created editable template and two renders in {out.resolve()}")

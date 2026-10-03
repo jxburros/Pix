@@ -7,7 +7,7 @@ from pathlib import Path
 import tomllib
 import zipfile
 
-from pix import __version__
+from vixl import __version__
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--checksums", action="store_true")
@@ -24,9 +24,9 @@ if args.checksums:
     ]
     (output / "SHA256SUMS.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
 else:
-    runtime = root / "dist" / "runtime" / "pix-engine"
-    assert (runtime / "pix-engine.exe").is_file()
-    bundle = output / f"pix-{__version__}-windows-x64.zip"
+    runtime = root / "dist" / "runtime" / "vixl-engine"
+    assert (runtime / "vixl-engine.exe").is_file()
+    bundle = output / f"vixl-{__version__}-windows-x64.zip"
     with zipfile.ZipFile(bundle, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
         for path in sorted(runtime.rglob("*")):
             if path.is_file():
@@ -39,4 +39,4 @@ else:
         "sha256": hashlib.sha256(bundle.read_bytes()).hexdigest(),
         "size": bundle.stat().st_size,
     }
-    (output / "pix-update.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    (output / "vixl-update.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")

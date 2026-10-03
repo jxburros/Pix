@@ -13,7 +13,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageOps
 
 from .assets import add_image, decode, read_bounded
-from .errors import PixError, require
+from .errors import VixlError, require
 from .model import finite, new_layer, uid
 from .render import (
     BLENDS,
@@ -174,7 +174,7 @@ def _select(project, op):
         mask = project.image(op["asset"], "L")
         require(mask.size == size, "Selection mask must match canvas size")
     else:
-        raise PixError("invalid_selection", f"Unknown selection shape: {shape}")
+        raise VixlError("invalid_selection", f"Unknown selection shape: {shape}")
     mode = op.get("mode", "replace")
     require(mode in ("replace", "add", "subtract", "intersect"), "Unknown selection combination")
     if mode != "replace" and project.state["selection"]:
@@ -509,7 +509,7 @@ def execute(project, op):
                     project, ImageOps.invert(project.image(layer["mask"]["asset"], "L")), "masks"
                 )
             else:
-                raise PixError("invalid_mask", f"Unknown mask action: {action}")
+                raise VixlError("invalid_mask", f"Unknown mask action: {action}")
     elif kind in ("effect", *EFFECTS):
         name = op["name"] if kind == "effect" else kind
         require(len(layer["effects"]) < 256, "Effect limit reached", "resource_limit")
@@ -550,7 +550,7 @@ def execute(project, op):
                     effect[key] = op[key]
             effect_valid(effect)
         else:
-            raise PixError("unknown_operation", f"Unknown operation: {kind}")
+            raise VixlError("unknown_operation", f"Unknown operation: {kind}")
     elif kind == "rasterize":
         require(
             not layer.get("styles") and not layer.get("clip"),
@@ -595,4 +595,4 @@ def execute(project, op):
             layer["effects"].append(item)
         require(len(layer["effects"]) <= 256, "Effect limit reached", "resource_limit")
     else:
-        raise PixError("unknown_operation", f"Unknown operation: {kind}")
+        raise VixlError("unknown_operation", f"Unknown operation: {kind}")

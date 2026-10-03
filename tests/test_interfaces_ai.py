@@ -7,16 +7,16 @@ from fastapi.testclient import TestClient
 from PIL import Image
 import pytest
 
-from pix import Project, PixError
-from pix.ai import ai_command, encoded, generate, plan
-from pix.interfaces import create_app
+from vixl import Project, VixlError
+from vixl.ai import ai_command, encoded, generate, plan
+from vixl.interfaces import create_app
 
 
 @pytest.fixture
 def project_path(tmp_path):
     p = Project(16, 16)
     p.apply({"type": "solid", "name": "logo", "color": "red", "width": 8, "height": 8})
-    path = tmp_path / "test.pix"
+    path = tmp_path / "test.vixl"
     p.save(path)
     return path
 
@@ -101,15 +101,15 @@ def test_reasoning_dryrun_and_restricted_plan(project_path):
     plan(p, "smaller", backend, apply=True)
     assert p.layer()["width"] == 4
     backend.invoke = lambda *_: {"operations": [{"type": "add", "path": "/etc/passwd"}]}
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         plan(p, "unsafe", backend, apply=True)
 
 
 def test_ai_inpaint_outpaint_mask_and_regenerate(project_path, monkeypatch):
-    import pix.ai
+    import vixl.ai
 
     backend = FakeProvider()
-    monkeypatch.setattr(pix.ai, "provider", lambda _: backend)
+    monkeypatch.setattr(vixl.ai, "provider", lambda _: backend)
     p = Project.load(project_path)
     p.apply({"type": "select", "shape": "rect", "x": 0, "y": 0, "width": 4, "height": 4})
     before = p.render()
@@ -137,10 +137,10 @@ def test_ai_inpaint_outpaint_mask_and_regenerate(project_path, monkeypatch):
 
 
 def test_ai_segmentation_and_background_removal(project_path, monkeypatch):
-    import pix.ai
+    import vixl.ai
 
     backend = FakeProvider()
-    monkeypatch.setattr(pix.ai, "provider", lambda _: backend)
+    monkeypatch.setattr(vixl.ai, "provider", lambda _: backend)
     p = Project.load(project_path)
     ai_command(p, "select", ["object", "left half"])
     assert p.image(p.state["selection"], "L").getpixel((12, 2)) == 0
@@ -154,7 +154,7 @@ def test_provider_failure_never_changes_state(project_path):
     before = deepcopy(p.manifest())
     backend = FakeProvider()
     backend.invoke = lambda *_: {"image": "bad base64"}
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         generate(p, {"width": 16, "height": 16, "prompt": "x"}, backend)
     assert p.manifest() == before
 
@@ -166,22 +166,22 @@ def test_real_mcp_stdio_handshake_and_tools(project_path):
     async def run():
         params = StdioServerParameters(
             command=sys.executable,
-            args=["-m", "pix", "--project", str(project_path), "mcp"],
+            args=["-m", "vixl", "--project", str(project_path), "mcp"],
             env=os.environ.copy(),
         )
         async with stdio_client(params) as (read, write):
             async with ClientSession(read, write) as client:
                 initialized = await client.initialize()
-                assert initialized.serverInfo.name == "Pix"
+                assert initialized.serverInfo.name == "Vixl"
                 listed = await client.list_tools()
-                assert "pix_operations_apply" in [t.name for t in listed.tools]
-                result = await client.call_tool("pix_document_inspect", {})
+                assert "vixl_operations_apply" in [t.name for t in listed.tools]
+                result = await client.call_tool("vixl_document_inspect", {})
                 assert not result.isError
                 result = await client.call_tool(
-                    "pix_operations_apply", {"operations": [{"type": "move", "target": "logo", "y": 3}]}
+                    "vixl_operations_apply", {"operations": [{"type": "move", "target": "logo", "y": 3}]}
                 )
                 assert not result.isError
-                result = await client.call_tool("pix_render_preview", {})
+                result = await client.call_tool("vixl_render_preview", {})
                 assert not result.isError and result.content[0].type == "image"
 
     asyncio.run(run())
@@ -189,10 +189,10 @@ def test_real_mcp_stdio_handshake_and_tools(project_path):
 
 
 def test_ai_regeneration_replaces_pixels_and_preserves_id(project_path, monkeypatch):
-    import pix.ai
+    import vixl.ai
 
     backend = FakeProvider()
-    monkeypatch.setattr(pix.ai, "provider", lambda _: backend)
+    monkeypatch.setattr(vixl.ai, "provider", lambda _: backend)
     p = Project.load(project_path)
     ai_command(p, "generate", ["--prompt", "blue", "--as", "art"])
     ident = p.layer()["id"]
@@ -208,9 +208,9 @@ def test_ai_regeneration_replaces_pixels_and_preserves_id(project_path, monkeypa
 
 
 def test_ai_transaction_rollback_does_not_corrupt_prior_history(project_path, monkeypatch):
-    import pix.ai
+    import vixl.ai
 
-    monkeypatch.setattr(pix.ai, "provider", lambda _: FakeProvider())
+    monkeypatch.setattr(vixl.ai, "provider", lambda _: FakeProvider())
     p = Project.load(project_path)
     nodes = deepcopy(p.nodes)
     state = deepcopy(p.state)
@@ -225,10 +225,10 @@ def test_ai_transaction_rollback_does_not_corrupt_prior_history(project_path, mo
 
 
 def test_service_invalid_history_and_help_cannot_exit(project_path):
-    from pix.interfaces import Session
+    from vixl.interfaces import Session
 
     session = Session(project_path)
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         session.history("branch", ref=["bad"])
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         session.ai("generate", ["--help"])

@@ -1,4 +1,4 @@
-class PixError(Exception):
+class VixlError(Exception):
     def __init__(self, code: str, message: str, **details):
         super().__init__(message)
         self.code = code
@@ -10,4 +10,4 @@ class PixError(Exception):
 
 def require(condition, message, code="invalid_operation", **details):
     if not condition:
-        raise PixError(code, message, **details)
+        raise VixlError(code, message, **details)

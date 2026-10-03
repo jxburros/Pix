@@ -6,11 +6,11 @@ import io
 from PIL import Image
 import pytest
 
-from pix import Project
-from pix.assets import add_image
-from pix.commands import compile_command
-from pix.errors import PixError
-from pix.interfaces import Session
+from vixl import Project
+from vixl.assets import add_image
+from vixl.commands import compile_command
+from vixl.errors import VixlError
+from vixl.interfaces import Session
 
 
 def shape(p, name, **kwargs):
@@ -32,8 +32,8 @@ def test_group_repeat_clips_stripes_to_sun_and_survives_history(tmp_path):
     assert actual.getpixel((0, 20))[3] == 0
     assert actual.getpixel((50, 40)) == (255, 0, 0, 255)
     assert len(p.state["layers"]) == 3
-    p.save(tmp_path / "poster.pix")
-    restored = Project.load(tmp_path / "poster.pix")
+    p.save(tmp_path / "poster.vixl")
+    restored = Project.load(tmp_path / "poster.vixl")
     assert restored.render().tobytes() == actual.tobytes()
     restored.undo()
     assert len(restored.state["layers"]) == 2
@@ -73,7 +73,7 @@ def test_nested_group_ungroup_and_cycle_rejection():
     shape(p, "b")
     p.apply({"type": "clip", "target": "a", "base": "b"})
     before = deepcopy(p.state)
-    with pytest.raises(PixError, match="cycle"):
+    with pytest.raises(VixlError, match="cycle"):
         p.apply({"type": "clip", "target": "b", "base": "a"})
     assert before == p.state
 
@@ -121,7 +121,7 @@ def test_gradient_stops_radial_angle_and_bad_order():
     assert p.render().getpixel((10, 10)) == (255, 0, 0, 255)
     p.apply({"type": "gradient", "name": "angled", "direction": "angled", "angle": 90, "stops": stops})
     assert p.render().getpixel((10, 0)) == (255, 0, 0, 255)
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         p.apply({"type": "gradient", "name": "bad", "stops": stops[::-1]})
 
 
@@ -197,7 +197,7 @@ def test_frame_replace_and_data_rows_without_mutation(tmp_path):
     assert len(result) == 2
     assert Image.open(result[1]["output"]).getpixel((10, 10)) == (0, 0, 255, 255)
     assert p.state == before
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         p.render_data(csv, tmp_path / "out")
 
 
@@ -229,7 +229,7 @@ def test_repeat_blend_and_resource_rollback():
     p.apply({"type": "repeat-blend", "count": 3, "dy": 10, "end": {"height": 4, "fill": "blue"}})
     assert p.render().getpixel((5, 23)) == (0, 0, 255, 255)
     before = deepcopy(p.state)
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         p.apply({"type": "repeat", "count": 100000})
     assert p.state == before
 
@@ -290,12 +290,12 @@ def test_measurement_histogram_contrast_and_services(tmp_path):
     assert result["average"]["rgb"] == [0, 0, 0]
     assert result["histogram"]["red"][0] == 200
     assert result["contrast"]["minimum"] == 21
-    p.save(tmp_path / "p.pix")
-    session = Session(tmp_path / "p.pix")
+    p.save(tmp_path / "p.vixl")
+    session = Session(tmp_path / "p.vixl")
     assert session.measure(point=[2, 2])["sample"] == result["sample"]
     session.apply([{"type": "group", "name": "g", "targets": ["s"]}])
     assert Image.open(io.BytesIO(session.render())).getpixel((2, 2)) == (0, 0, 0, 255)
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         session.apply([{"type": "frame", "path": "/etc/passwd"}])
 
 
@@ -315,7 +315,7 @@ def test_measurement_histogram_contrast_and_services(tmp_path):
     ],
 )
 def test_cli_schemas(command):
-    from pix.schema import validate_operation
+    from vixl.schema import validate_operation
 
     validate_operation(compile_command(command))
 
@@ -344,13 +344,13 @@ def test_bad_repeat_before_group_is_bounded_and_atomic():
     p = Project(10, 10)
     shape(p, "s", width=1, height=1)
     before = deepcopy(p.state)
-    with pytest.raises(PixError):
+    with pytest.raises(VixlError):
         p.apply([{"type": "repeat", "count": 1000000000}, {"type": "group", "name": "g", "targets": ["s"]}])
     assert p.state == before
 
 
 def test_auto_histogram_stretches_range_and_preserves_alpha():
-    from pix.render import apply_effect
+    from vixl.render import apply_effect
 
     image = Image.new("RGBA", (3, 1))
     image.putdata([(50, 80, 100, 255), (150, 180, 200, 128), (0, 0, 0, 0)])
@@ -361,10 +361,10 @@ def test_auto_histogram_stretches_range_and_preserves_alpha():
 
 
 def test_cli_render_data_and_artboards(tmp_path, monkeypatch):
-    from pix.cli import dispatch
+    from vixl.cli import dispatch
 
     monkeypatch.chdir(tmp_path)
-    dispatch(["new", "30x30", "-o", "p.pix"])
+    dispatch(["new", "30x30", "-o", "p.vixl"])
     dispatch(["swatch", "brand", "red"])
     dispatch(["shape", "ellipse", "--name", "sun", "--fill", "@brand", "--width", "20", "--height", "20"])
     dispatch(["artboard", "small", "--width", "20", "--height", "20"])
@@ -392,14 +392,14 @@ def test_csv_failed_row_does_not_publish_partial_output(tmp_path):
         ]
     )
     (tmp_path / "rows.csv").write_text("photo\n" + asset + "\nmissing.png\n")
-    with pytest.raises((PixError, OSError)):
+    with pytest.raises((VixlError, OSError)):
         p.render_data(tmp_path / "rows.csv", tmp_path / "out")
     assert not (tmp_path / "out").exists()
 
 
 @pytest.mark.parametrize("action", ["remove", "content-aware-fill", "select-subject"])
 def test_ai_edit_operations_use_provider_and_preserve_selection_boundary(action, monkeypatch):
-    from pix import ai
+    from vixl import ai
 
     calls = []
 
@@ -428,12 +428,12 @@ def test_ai_edit_operations_use_provider_and_preserve_selection_boundary(action,
 
 def test_rest_measure_and_artboard_render(tmp_path):
     from fastapi.testclient import TestClient
-    from pix.interfaces import create_app
+    from vixl.interfaces import create_app
 
     p = Project(20, 20, "white")
     p.apply({"type": "artboard", "name": "wide", "width": 40, "height": 20})
-    p.save(tmp_path / "p.pix")
-    client = TestClient(create_app(tmp_path / "p.pix"))
+    p.save(tmp_path / "p.vixl")
+    client = TestClient(create_app(tmp_path / "p.vixl"))
     response = client.post("/measure", json={"point": [1, 1], "foreground": "black"})
     assert response.status_code == 200
     assert response.json()["contrast"]["minimum"] == 21
@@ -457,27 +457,27 @@ def test_target_contrast_uses_opacity_and_overlay_without_mutation():
 def test_mcp_design_schema_measurement_and_typed_tools(tmp_path):
     import asyncio
     import jsonschema
-    from pix.interfaces import mcp_server
-    from pix.mcp_tools import preview
+    from vixl.interfaces import mcp_server
+    from vixl.mcp_tools import preview
 
     p = Project(30, 30, "white")
     p.apply({"type": "artboard", "name": "wide", "width": 60, "height": 30})
-    p.save(tmp_path / "p.pix")
-    session = Session(tmp_path / "p.pix")
+    p.save(tmp_path / "p.vixl")
+    session = Session(tmp_path / "p.vixl")
     result = session.apply([{"type": "swatch", "name": "brand", "color": "red"}])
     assert result["changes"]["swatches"]["after"] == {"brand": "red"}
     assert Image.open(io.BytesIO(preview(session, artboard="wide"))).size == (60, 30)
 
     async def run():
-        server = mcp_server(tmp_path / "p.pix")
+        server = mcp_server(tmp_path / "p.vixl")
         tools = {tool.name: tool for tool in await server.list_tools()}
         assert {
-            "pix_measure",
-            "pix_ai_remove",
-            "pix_ai_content_aware_fill",
-            "pix_ai_select_subject",
+            "vixl_measure",
+            "vixl_ai_remove",
+            "vixl_ai_content_aware_fill",
+            "vixl_ai_select_subject",
         } <= tools.keys()
-        schema = tools["pix_operations_apply"].inputSchema
+        schema = tools["vixl_operations_apply"].inputSchema
         for op in [
             {"type": "shape", "shape": "ellipse", "name": "sun"},
             {"type": "group", "targets": ["sun"], "name": "g"},
@@ -496,7 +496,7 @@ def test_mcp_design_schema_measurement_and_typed_tools(tmp_path):
         ]:
             with pytest.raises(jsonschema.ValidationError):
                 jsonschema.validate({"operations": [op]}, schema)
-        result = await server.call_tool("pix_measure", {"point": [1, 1], "foreground": "black"})
+        result = await server.call_tool("vixl_measure", {"point": [1, 1], "foreground": "black"})
         assert result
 
     asyncio.run(run())
