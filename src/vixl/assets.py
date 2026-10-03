@@ -35,6 +35,27 @@ def read_bounded(path, limit):
     return data
 
 
+SOURCE_FORMATS = {"PNG": "png", "JPEG": "jpg", "WEBP": "webp"}
+
+
+def add_encoded(project, data, category="assets"):
+    """Embed an imported file. Compact still-image formats keep their original bytes (a JPEG
+    photo stays a JPEG instead of growing ~10x as PNG); anything else is normalized to PNG.
+    Returns ``(asset_name, decoded_image)``."""
+    image = decode(data, project.limits)
+    try:
+        with Image.open(io.BytesIO(data)) as probe:
+            fmt = probe.format
+            frames = getattr(probe, "n_frames", 1)
+    except (OSError, ValueError) as exc:
+        raise VixlError("invalid_image", f"Cannot decode image: {exc}") from exc
+    if fmt in SOURCE_FORMATS and frames == 1:
+        name = f"{category}/{hashlib.sha256(data).hexdigest()}.{SOURCE_FORMATS[fmt]}"
+        project.assets[name] = data
+        return name, image
+    return add_image(project, image, category), image
+
+
 def add_image(project, image, category="assets"):
     project.limits.size(*image.size)
     data = png_bytes(image)

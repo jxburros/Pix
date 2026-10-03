@@ -4,7 +4,7 @@ import csv
 import io
 from pathlib import Path
 
-from .assets import read_bounded, add_image, decode
+from .assets import add_encoded, read_bounded
 from .errors import require, VixlError
 
 
@@ -73,9 +73,8 @@ def render_data(project, csv_path, directory, *, variables=None, **options):
                     path = Path(values[key])
                     if not path.is_absolute():
                         path = Path(csv_path).resolve().parent / path
-                    values[key] = add_image(
-                        candidate,
-                        decode(read_bounded(path, candidate.limits.max_asset_bytes), candidate.limits),
+                    values[key], _ = add_encoded(
+                        candidate, read_bounded(path, candidate.limits.max_asset_bytes)
                     )
             candidate.export(Path(staging) / f"{i}.png", variables=values, format="PNG", **options)
         root.mkdir(parents=True, exist_ok=True)

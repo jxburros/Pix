@@ -7,9 +7,10 @@ from threading import RLock
 
 from filelock import FileLock
 
-from .assets import add_image, decode
+from .assets import add_encoded
 from .errors import VixlError, require
 from .model import Limits
+from . import __version__
 from .project import Project
 from .validation import validate
 
@@ -154,13 +155,12 @@ class Session:
                 "branch": p.current_branch,
                 "branches": p.branches,
                 "checkpoints": p.checkpoints,
-                "nodes": [{k: v for k, v in node.items() if k != "state"} for node in p.nodes.values()],
+                "nodes": [{k: v for k, v in node.items() if k not in ("state", "delta")} for node in p.nodes.values()],
             }
 
     def import_image(self, data, name="image"):
         with self.project(write=True) as p:
-            image = decode(data, p.limits)
-            asset = add_image(p, image)
+            asset, _ = add_encoded(p, data)
             p.apply({"type": "add", "asset": asset, "name": name})
             return p.inspect(p.state["active_layer"])
 
@@ -185,7 +185,7 @@ def create_app(path, *, token=None, limits=None):
     except ImportError as exc:
         raise VixlError("missing_dependency", "Install vixl-engine[server]") from exc
     session = Session(path, limits)
-    app = FastAPI(title="Vixl Engine", version="0.10.0")
+    app = FastAPI(title="Vixl Engine", version=__version__)
     if not token:
         app.add_middleware(
             TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver"]

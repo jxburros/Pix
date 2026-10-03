@@ -1,6 +1,8 @@
 """Discoverable JSON Schema for the public structured operation format."""
 
 from copy import deepcopy
+from functools import lru_cache
+
 from .render import EFFECTS, BLENDS
 
 S = {"type": "string"}
@@ -15,6 +17,19 @@ def enum(*values):
 
 
 def operation_schema():
+    return deepcopy(_operation_schema())
+
+
+@lru_cache(maxsize=1)
+def _validators():
+    from jsonschema import Draft202012Validator
+
+    variants = _operation_schema()["properties"]["operations"]["items"]["oneOf"]
+    return {s["properties"]["type"]["const"]: Draft202012Validator(s) for s in variants}
+
+
+@lru_cache(maxsize=1)
+def _operation_schema():
     variants = []
 
     def add(kind, properties=None, required=(), **extra):
@@ -213,7 +228,6 @@ def operation_schema():
 def validate_operation(operation):
     """Validate before doing any I/O; return canonical names for legacy aliases."""
     import json
-    from jsonschema import Draft202012Validator
     from .operations import ALIASES
     from .errors import VixlError, require
 
@@ -224,10 +238,9 @@ def validate_operation(operation):
     if "layer" in result:
         result["target"] = result.pop("layer")
     require(isinstance(result["type"], str), "Operation requires a string type")
-    variants = operation_schema()["properties"]["operations"]["items"]["oneOf"]
-    schema = next((s for s in variants if s["properties"]["type"]["const"] == result["type"]), None)
-    require(schema is not None, f"Unknown operation: {result['type']}", "unknown_operation")
-    error = next(Draft202012Validator(schema).iter_errors(result), None)
+    validator = _validators().get(result["type"])
+    require(validator is not None, f"Unknown operation: {result['type']}", "unknown_operation")
+    error = next(validator.iter_errors(result), None)
     if error:
         raise VixlError("invalid_operation", error.message, field=".".join(map(str, error.path)))
     try:

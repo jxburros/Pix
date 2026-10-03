@@ -1,18 +1,26 @@
 """Portable project storage, atomic operation batches and a persistent history DAG."""
 
-from copy import deepcopy
+from copy import copy, deepcopy
 import difflib
 import hashlib
 import io
 import json
 import os
 from pathlib import Path
-import tempfile
+import re
 import zipfile
 
+from . import __version__
 from .assets import decode, read_bounded
 from .errors import VixlError, require
+from .history import diff, patch
 from .model import Limits, new_state, uid
+
+# Every Nth revision on a chain stores a full snapshot; the others store a delta from the parent.
+SNAPSHOT_INTERVAL = 32
+FORMAT_VERSION = 2
+NODE_KEYS = {"id", "parent", "operations", "label", "state", "delta", "squashed"}
+ASSET_REFERENCE = re.compile(rb"(?:assets|masks|fonts)/[0-9a-f]{64}\.[a-z0-9]{2,5}")
 
 
 class Project:
@@ -35,6 +43,8 @@ class Project:
         self.allow_linked = False
         self._revision = None
         self._cache = {}
+        self._head_state = None
+        self._verified = set()
         self._record([], "Create document")
 
     def layer(self, target=None):
@@ -54,8 +64,17 @@ class Project:
         return decode(self.assets[asset], self.limits, mode)
 
     def clone(self):
-        clone = deepcopy(self, {id(self._cache): {}})
-        clone._cache = {}
+        """Copy-on-write candidate. History nodes are immutable once recorded, so they are shared
+        instead of deep-copied on every edit; the render cache is content-addressed and shared."""
+        clone = copy(self)
+        clone.state = deepcopy(self.state)
+        clone.assets = dict(self.assets)
+        clone.nodes = dict(self.nodes)
+        clone.branches = dict(self.branches)
+        clone.checkpoints = dict(self.checkpoints)
+        clone.redo_stack = list(self.redo_stack)
+        clone.transaction = deepcopy(self.transaction)
+        clone._verified = set(self._verified)
         return clone
 
     def inspect(self, target=None):
@@ -70,27 +89,100 @@ class Project:
             return next(x for x in state["layers"] if x["id"] == ident)
         return {
             **state,
-            "version": "0.10.0",
+            "version": __version__,
             "head": self.head,
             "branch": self.current_branch,
             "history_count": len(self.nodes),
             "transaction": self.transaction is not None,
         }
 
+    def _delta_depth(self, ident):
+        depth = 0
+        while "state" not in self.nodes[ident]:
+            depth += 1
+            ident = self.nodes[ident]["parent"]
+            require(ident is not None and depth <= len(self.nodes), "Invalid history chain", "invalid_project")
+        return depth
+
+    def _state_at(self, ident):
+        """Reconstruct a revision's state from its nearest snapshot. Returns a private copy."""
+        if ident == self.head and self._head_state is not None:
+            return deepcopy(self._head_state)
+        chain = []
+        cursor = ident
+        while "state" not in self.nodes[cursor]:
+            chain.append(self.nodes[cursor]["delta"])
+            cursor = self.nodes[cursor]["parent"]
+            require(
+                cursor is not None and len(chain) <= len(self.nodes), "Invalid history chain", "invalid_project"
+            )
+        state = deepcopy(self.nodes[cursor]["state"])
+        for delta in reversed(chain):
+            state = patch(state, delta)
+        return state
+
+    def _node(self, ident, parent, operations, label, state, parent_state):
+        node = {"id": ident, "parent": parent, "operations": deepcopy(operations), "label": label}
+        if parent is None or parent_state is None or self._delta_depth(parent) + 1 >= SNAPSHOT_INTERVAL:
+            node["state"] = deepcopy(state)
+        else:
+            node["delta"] = diff(parent_state, state)
+        return node
+
     def _record(self, operations, label=None):
-        require(len(self.nodes) < self.limits.max_history, "History limit reached", "resource_limit")
+        if len(self.nodes) >= self.limits.max_history:
+            self._prune()
         ident = uid("rev")
-        self.nodes[ident] = {
-            "id": ident,
-            "parent": self.head,
-            "operations": deepcopy(operations),
-            "label": label,
-            "state": deepcopy(self.state),
-        }
+        self.nodes[ident] = self._node(ident, self.head, operations, label, self.state, self._head_state)
         self.head = ident
+        self._head_state = deepcopy(self.state)
+        self._verified.add(ident)
         if self.current_branch:
             self.branches[self.current_branch] = ident
         self.redo_stack = []
+
+    def _amend_head(self):
+        """Replace the head revision's stored state with the current state (same operations)."""
+        node = self.nodes[self.head]
+        parent = node["parent"]
+        parent_state = self._state_at(parent) if parent else None
+        self.nodes[self.head] = {
+            **self._node(self.head, parent, node["operations"], node["label"], self.state, parent_state),
+            **({"squashed": True} if node.get("squashed") else {}),
+        }
+        self._head_state = deepcopy(self.state)
+
+    def _prune(self):
+        """Squash the oldest unreferenced revisions instead of refusing further edits.
+
+        Branch tips, checkpoints, the head and redo entries are kept. A removed revision's
+        children become full snapshots attached to its parent, so later states are unchanged."""
+        target = self.limits.max_history - max(1, self.limits.max_history // 10)
+        protected = {self.head, *self.branches.values(), *self.checkpoints.values(), *self.redo_stack}
+        children = {}
+        for node in self.nodes.values():
+            children.setdefault(node["parent"], []).append(node["id"])
+        for ident in list(self.nodes):
+            if len(self.nodes) <= target:
+                break
+            if ident in protected:
+                continue
+            node = self.nodes[ident]
+            for child in children.pop(ident, []):
+                state = self._state_at(child)
+                replacement = {k: v for k, v in self.nodes[child].items() if k not in ("state", "delta")}
+                replacement.update(parent=node["parent"], state=state, squashed=True)
+                self.nodes[child] = replacement
+                children.setdefault(node["parent"], []).append(child)
+            siblings = children.get(node["parent"], [])
+            if ident in siblings:
+                siblings.remove(ident)
+            del self.nodes[ident]
+        require(
+            len(self.nodes) < self.limits.max_history,
+            "History limit reached and every revision is protected by a branch, checkpoint or redo entry",
+            "resource_limit",
+        )
 
     def apply(self, operations, *, dry_run=False, detail="full"):
         require(detail in ("compact", "full"), "Unknown response detail")
@@ -158,11 +250,21 @@ class Project:
             self._restore(self.redo_stack.pop())
 
     def _restore(self, node):
+        state = self._state_at(node)
+        if node not in self._verified:
+            # Archived history is untrusted until a revision is actually used.
+            from .validation import check_state
+
+            try:
+                check_state(self, state)
+            except (KeyError, TypeError, ValueError, AttributeError, RecursionError) as exc:
+                raise VixlError("invalid_project", f"Malformed history revision: {exc}") from exc
+            self._verified.add(node)
         self.head = node
-        self.state = deepcopy(self.nodes[node]["state"])
+        self.state = state
+        self._head_state = deepcopy(state)
         if self.current_branch:
             self.branches[self.current_branch] = node
-        self._cache.clear()
 
     def branch(self, name):
         require(isinstance(name, str) and 0 < len(name) <= 200, "History name must be 1–200 characters")
@@ -206,7 +308,6 @@ class Project:
         require(self.transaction is not None, "No transaction open")
         self.state = self.transaction["state"]
         self.transaction = None
-        self._cache.clear()
 
     def render(self, variables=None, *, artboard=None, comp=None):
         from .render import render
@@ -260,8 +361,8 @@ class Project:
 
     def manifest(self):
         return {
-            "format_version": 1,
-            "vixl_version": "0.10.0",
+            "format_version": FORMAT_VERSION,
+            "vixl_version": __version__,
             "state": self.state,
             "nodes": self.nodes,
             "head": self.head,
@@ -275,6 +376,7 @@ class Project:
 
     def save(self, path=None):
         from filelock import FileLock
+        from .fileio import temporary
 
         require(path or self.path, "Provide a .vixl project path")
         path = Path(path or self.path).resolve()
@@ -287,25 +389,34 @@ class Project:
                     "Project changed on disk; reload before saving",
                     "write_conflict",
                 )
-            encoded = json.dumps(self.manifest(), allow_nan=False, separators=(",", ":")).encode()
+            manifest = self.manifest()
+            manifest.pop("asset_hashes")
+            body = json.dumps(manifest, allow_nan=False, separators=(",", ":")).encode()
+            # Drop assets no revision references any more (for example after history pruning).
+            referenced = {name.decode() for name in ASSET_REFERENCE.findall(body)}
+            self.assets = {k: v for k, v in self.assets.items() if k in referenced}
+            manifest["asset_hashes"] = {k: hashlib.sha256(v).hexdigest() for k, v in self.assets.items()}
+            encoded = json.dumps(manifest, allow_nan=False, separators=(",", ":")).encode()
             require(
                 len(encoded) + sum(map(len, self.assets.values())) <= self.limits.max_project_bytes,
                 "Project exceeds byte limit",
                 "resource_limit",
             )
-            fd, temporary = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+            fd, temporary_path = temporary(path.parent, like=path if path.exists() else None)
             try:
                 with os.fdopen(fd, "wb") as stream:
-                    with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED) as archive:
-                        archive.writestr("project.json", encoded)
+                    with zipfile.ZipFile(stream, "w") as archive:
+                        archive.writestr("project.json", encoded, zipfile.ZIP_DEFLATED)
+                        # Image assets are already compressed; recompressing them on every
+                        # autosave cost far more time than it saved space.
                         for name, data in sorted(self.assets.items()):
-                            archive.writestr(name, data)
+                            archive.writestr(name, data, zipfile.ZIP_STORED)
                     stream.flush()
                     os.fsync(stream.fileno())
-                os.replace(temporary, path)
+                os.replace(temporary_path, path)
             finally:
-                if os.path.exists(temporary):
-                    os.unlink(temporary)
+                if os.path.exists(temporary_path):
+                    os.unlink(temporary_path)
             self.path = path
             self._revision = hashlib.sha256(path.read_bytes()).hexdigest()
         return str(path)
@@ -347,7 +458,11 @@ class Project:
                     "invalid_project",
                 )
                 metadata = json.loads(archive.read("project.json"))
-                require(metadata.get("format_version") == 1, "Unsupported project format", "invalid_project")
+                require(
+                    metadata.get("format_version") in (1, FORMAT_VERSION),
+                    "Unsupported project format",
+                    "invalid_project",
+                )
                 project = cls(1, 1, limits=limits)
                 for key in (
                     "state",
@@ -377,6 +492,8 @@ class Project:
                         decode(data, limits)
                 project.allow_linked = allow_linked
                 project.path = path
+                project._head_state = None
+                project._verified = set()
                 check_document(project)
                 project._revision = revision
                 return project

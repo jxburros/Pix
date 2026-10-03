@@ -587,7 +587,7 @@ def ai_execute(project, cmd, a):
         result = generate(candidate, request, backend, name=layer["name"] + " upscaled")
         candidate.layer().update(x=bounds[0], y=bounds[1])
         if candidate.transaction is None:
-            candidate.nodes[candidate.head]["state"] = deepcopy(candidate.state)
+            candidate._amend_head()
         project.__dict__.update(candidate.__dict__)
         return result, True
     if cmd == "ai" and action == "extend":

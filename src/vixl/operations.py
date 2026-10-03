@@ -12,7 +12,7 @@ import re
 import numpy as np
 from PIL import Image, ImageDraw, ImageOps
 
-from .assets import add_image, decode, read_bounded
+from .assets import add_encoded, add_image, decode, read_bounded
 from .errors import VixlError, require
 from .model import finite, new_layer, uid
 from .render import (
@@ -221,8 +221,7 @@ def execute(project, op):
         else:
             source = Path(op["path"]).resolve()
             data = read_bounded(source, project.limits.max_asset_bytes)
-            image = decode(data, project.limits)
-            asset = add_image(project, image)
+            asset, image = add_encoded(project, data)
             provenance = {
                 "type": "imported",
                 "original_filename": source.name,

@@ -428,7 +428,7 @@ def project_command(project, cmd, args):
             "current": project.current_branch,
         }, False
     if cmd == "history":
-        return [{k: v for k, v in node.items() if k != "state"} for node in project.nodes.values()], False
+        return [{k: v for k, v in node.items() if k not in ("state", "delta")} for node in project.nodes.values()], False
     if cmd == "transaction":
         require(
             len(args) == 1 and args[0] in ("begin", "commit", "rollback"),

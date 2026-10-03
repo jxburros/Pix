@@ -198,11 +198,9 @@ def execute_design(project, op):
             layer = project.layer(op.get("target"))
             require(layer["type"] in ("raster", "frame"), "Replace Contents requires an image layer")
             if "path" in op:
-                from .assets import add_image, decode, read_bounded
+                from .assets import add_encoded, read_bounded
 
-                layer["asset"] = add_image(
-                    project, decode(read_bounded(op["path"], project.limits.max_asset_bytes), project.limits)
-                )
+                layer["asset"], _ = add_encoded(project, read_bounded(op["path"], project.limits.max_asset_bytes))
             elif "asset" in op:
                 project.image(op["asset"])
                 layer["asset"] = op["asset"]
