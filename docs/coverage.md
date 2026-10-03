@@ -1,6 +1,6 @@
 # Specification coverage
 
-This is a working first implementation spanning the six roadmap stages in the supplied [specification](product-spec.md). It is not a claim of production maturity or complete GIMP parity. Version 0.7.0 adds Windows installation, GitHub releases, and automatic updates to that feature scope; future work remains below.
+This is a working first implementation spanning the six roadmap stages in the supplied [specification](product-spec.md). It is not a claim of production maturity or complete GIMP parity. Version 0.8.0 adds workspace file tools, typed AI tools, inline operation schemas, bounded previews, compact edit summaries, and cached service sessions on top of Windows installation and automatic updates; future work remains below.
 
 | Specification area | Implemented |
 | --- | --- |

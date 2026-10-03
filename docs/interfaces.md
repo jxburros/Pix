@@ -13,6 +13,8 @@ project.apply(proposal)
 project.save()
 ```
 
+`Project.apply(..., detail="compact")` returns changed fields keyed by stable layer ID; the Python API keeps `detail="full"` as its compatibility default.
+
 `Project.render()` returns a Pillow RGBA image. `Project.export()` returns encoded bytes, optionally writing to a path. `Project.inspect()` returns an independent JSON-serializable state description. History methods: `undo`, `redo`, `branch`, `checkpoint`, `checkout`, `begin`, `commit`, `rollback`.
 
 Loading does not implicitly trust linked image paths; use `allow_linked=True` only when those local file references are intended. Direct Python APIs are trusted local APIs and can import files. Exceptions expose `PixError.code`, `.details`, and `.as_dict()`.
@@ -31,7 +33,7 @@ Default binding is `127.0.0.1:8765`. OpenAPI is at `/docs`. To bind beyond loopb
 | `GET /document` | Inspected state |
 | `GET /layers` | Layer list |
 | `GET /schema` | Canonical operation batch JSON Schema |
-| `POST /operations` | `{operations: [...], dry_run: false}` → change summary |
+| `POST /operations` | `{operations: [...], dry_run: false, detail: "compact"}` → change summary (use `full` for snapshots) |
 | `GET /render` | PNG bytes |
 | `POST /render` | `{variables: {title: "Hello"}}` → PNG bytes |
 | `POST /validate` | `{profile: "instagram-post", rules: [...]}` → checks |
@@ -48,31 +50,75 @@ curl -X POST http://127.0.0.1:8765/operations \
 curl http://127.0.0.1:8765/render -o preview.png
 ```
 
-Service sessions fix the project path when launched. Operation `path`, `linked`, and `font` fields are rejected; import image bytes with `/assets`. Services do not enable third-party plugins or linked-file reads. Local AI configuration is trusted, and services can invoke it. Do not share API access with users who should not be able to use your configured AI service. Authentication is all-or-nothing; there are no per-user roles or quotas.
+REST sessions fix the project path when launched. Operation `path`, `linked`, and `font` fields are rejected; import image bytes with `/assets`. Services do not enable third-party plugins or linked-file reads. Local AI configuration is trusted, and services can invoke it. Do not share API access with users who should not be able to use your configured AI service. Authentication is all-or-nothing; there are no per-user roles or quotas.
 
 ## MCP
 
-```bash
-python -m pip install -e '.[mcp]'
-pix --project /absolute/path/poster.pix mcp
+The Windows installer includes MCP. For source installs, install `.[mcp]`. Give Pix an existing workspace directory that contains the images/documents the model should edit:
+
+```powershell
+pix mcp --workspace "C:\Users\jeffr\Pictures\Pix"
 ```
 
-Example client configuration:
+The workspace can start without any `.pix` documents. MCP runs over stdio using the official SDK; stdout contains protocol messages only. Configure your client to start it (escape Windows backslashes in JSON):
 
 ```json
 {
   "mcpServers": {
     "pix": {
-      "command": "/absolute/path/Pix/.venv/bin/pix",
-      "args": ["--project", "/absolute/path/poster.pix", "mcp"]
+      "command": "pix",
+      "args": ["mcp", "--workspace", "C:\\Users\\jeffr\\Pictures\\Pix"]
     }
   }
 }
 ```
 
-Tools: `pix_document_inspect`, `pix_operations_apply`, `pix_render_preview`, `pix_validate`, `pix_history`, `pix_import_image`, `pix_ai`. The renderer returns native MCP image content, not a host file path. The `pix://operations` resource provides the full operation schema. MCP uses the official Python SDK over stdio; stdout contains protocol messages only.
+If the client cannot find `pix` on PATH, use the absolute executable path, normally `C:\Users\jeffr\AppData\Local\Pix\bin\pix.exe` for the Windows installer. Restart the client after installing/updating or changing its configuration. On macOS/Linux, use your installed `pix` executable and a workspace such as `/home/you/Pictures/Pix`.
 
-The MCP service shares the REST project boundary. The client selects the project at server startup, submits operations against stable IDs, validates, and requests previews. Multi-operation edits are atomic. `dry_run: true` lets an agent inspect consequences first.
+Existing `pix --project /absolute/path/poster.pix mcp` configurations still work: they open that document and use its parent directory as the workspace. You can also pass `--workspace` explicitly; the starting project must be within it.
+
+### Tools and workflow
+
+| Tool | Purpose |
+| --- | --- |
+| `pix_workspace_list(directory, offset, limit)` | Discover workspace paths; default 100 entries per page |
+| `pix_document_create(path, width, height, background)` | Create and activate a new `.pix`; refuses overwrites |
+| `pix_document_open(path)` | Switch active document; all previous successful edits are already saved |
+| `pix_document_inspect(target?)` | Inspect the whole document, or one layer by ID/name |
+| `pix_import_image(path, name)` | Read an image file into an embedded layer without passing base64 |
+| `pix_operations_apply(operations, dry_run, detail)` | Atomic edits; schemas are included directly in tools/list |
+| `pix_render_preview(variables, max_width, max_height, max_bytes)` | Native MCP image content, bounded dimensions and encoded size |
+| `pix_export_file(path, quality, scale, profile, variables, background, overwrite)` | Save full-resolution PNG/JPEG/WEBP/TIFF/AVIF; return only file metadata |
+| `pix_validate(profile, rules)` | Check bounds, profiles, assertions |
+| `pix_history(action, ref, count, offset, limit)` | Undo/redo/transactions/branches/checkpoints; paginated summaries |
+
+For example, create `poster.pix` at 4000×3000, import `photo.jpg` as `photo`, apply `[{"type":"move","target":"photo","x":20}]`, request a preview, then export `poster.png`. Put the photo in the workspace first. File paths refer to the machine running Pix; a remote client cannot use paths on a different machine unless it transfers the files there separately.
+
+Relative and absolute paths are accepted within the workspace. Paths escaping it, including symlinks to outside directories, are rejected. Export refuses existing files unless `overwrite: true` is supplied, and cannot overwrite `.pix` documents. Subdirectories must already exist. Operation `path`, `linked`, and `font` fields remain unavailable; use the import tool. Services do not enable third-party plugins or linked-file reads.
+
+### Small responses and previews
+
+Canonical operation variants, required fields, effect names and enums are embedded in `pix_operations_apply`'s input schema. The model does not need to fetch `pix://operations`; that resource remains available as a reference. Repeated effect aliases are omitted from the advertised schema: use `{"type":"effect","name":"blur","radius":2}`.
+
+The default `detail: "compact"` response includes changed fields keyed by stable layer ID, added/removed layers, and layer order when it changes. A one-layer move does not echo the other layers. `detail: "full"` explicitly requests before/after snapshots. `dry_run: true` returns the same kind of summary without modifying the document. Inspect a single layer with `target` when more detail is needed. History lists default to 20 node summaries without replaying their operation payloads.
+
+Preview defaults: **1024×1024 maximum and 1 MiB of encoded PNG data**, with no upscaling and preserved transparency/aspect ratio. If the PNG exceeds the byte budget, it shrinks further. You may request dimensions up to 4096 and a byte limit from 64 KiB to 4 MiB. MCP base64 transport adds roughly one third to the encoded byte size. Previews do not resize the document; file export uses full resolution unless a scale/profile is requested. Rendering still computes the full canvas before downsampling, so complex large images can take time.
+
+### Typed AI tools
+
+These call your [configured providers](providers.md) with named fields, without CLI flags:
+
+- `pix_ai_generate(prompt, mode, width, height, seed, name, provider, model, negative_prompt, strength)`; mode is `generate`, `inpaint`, or `img2img`. Supply both dimensions or neither. Inpainting needs a selection.
+- `pix_ai_remove_background(layer, provider)` and `pix_ai_select_object(label, provider)`.
+- `pix_ai_plan(prompt, apply, provider)`; defaults to a proposal without applying it.
+- `pix_ai_analyze(capability, query, provider)`; capability is `describe`, `detect`, or `ocr`.
+- `pix_ai_upscale(layer, scale, provider)`, `pix_ai_regenerate(layer, prompt, seed, provider)`, and `pix_ai_extend(prompt, left, right, top, bottom, seed, name, provider)`.
+
+Provider capability limits still apply. Local provider settings and credentials remain on the server. Layer provenance is available through inspection. In 0.8.0, `pix_ai(command,args)` is replaced by these tools, and `pix_import_image(image_base64,...)` changes to `pix_import_image(path,...)`. Reconnect clients to refresh their tool lists. CLI/Python AI calls remain compatible.
+
+### Session performance and consistency
+
+REST and MCP retain the loaded project between calls. A file fingerprint (identity, size and high-resolution modification/change times) triggers a fresh load when an external edit is detected. Reads reuse the render cache. Thread and interprocess locks serialize edits; saves retain optimistic revision checks and atomic replacement. Failed edits, provider calls or saves discard the cached instance before the next access. Switching documents loads the selected file. Successful mutations still save the project archive; caching removes repeated archive loading/validation, not the cost of rendering or saving.
 
 ## Trusted extensions
 

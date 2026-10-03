@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pix-engine"
-version = "0.7.0"
+version = "0.8.0"
 description = "A programmable image-document engine for humans, scripts, and AI agents"
 readme = "README.md"
 requires-python = ">=3.11"

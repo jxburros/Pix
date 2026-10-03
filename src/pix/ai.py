@@ -336,7 +336,7 @@ SAFE_PLAN = {
 }
 
 
-def plan(project, prompt, backend, apply=False):
+def plan(project, prompt, backend, apply=False, *, detail="full"):
     from .render import EFFECTS
 
     from .schema import operation_schema
@@ -370,7 +370,7 @@ def plan(project, prompt, backend, apply=False):
             "AI plans cannot request files",
             "unsafe_plan",
         )
-    preview = project.apply(ops, dry_run=True)
+    preview = project.apply(ops, dry_run=True, detail=detail)
     if apply:
         project.apply(ops)
     return {"proposal": ops, "applied": apply, "preview": preview}
@@ -450,6 +450,11 @@ def ai_command(project, cmd, args):
     for edge in ("left", "right", "top", "bottom"):
         p.add_argument("--" + edge, type=int, default=0)
     a = p.parse_args(args)
+    return ai_execute(project, cmd, a)
+
+
+def ai_execute(project, cmd, a):
+    """Execute parsed, typed options shared by CLI and MCP; no CLI parsing here."""
     if cmd == "ai" and a.words and a.words[0] == "info":
         return project.layer(a.words[1] if len(a.words) > 1 else None).get("provenance", {}), False
     provider_name = a.provider
@@ -461,7 +466,7 @@ def ai_command(project, cmd, args):
     if cmd == "ask":
         prompt = a.prompt or " ".join(a.words)
         require(prompt, "Provide a natural-language request")
-        return plan(project, prompt, backend, a.apply), a.apply
+        return plan(project, prompt, backend, a.apply, detail=getattr(a, "detail", "full")), a.apply
     c = project.state["canvas"]
     request = {
         "prompt": a.prompt or "",

@@ -22,6 +22,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Installed font rendering failed' }
     pix -p "$Install\test-project.pix" export "$Install\test.png"
     if ($LASTEXITCODE -ne 0) { throw 'Installed export failed' }
+    & $Python distribution/test_native_mcp.py "$Install\bin\pix.exe"
+    if ($LASTEXITCODE -ne 0) { throw 'Installed MCP verification failed' }
     pix updates off
     if ($LASTEXITCODE -ne 0) { throw 'Update preferences failed' }
     $Status = (pix updates status --json | ConvertFrom-Json)

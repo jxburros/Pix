@@ -1,10 +1,9 @@
-"""Fixed-project REST and MCP services; file access stays inside the project boundary."""
+"""Cached project sessions, fixed-project REST and workspace-scoped MCP services."""
 
-import base64
 from contextlib import contextmanager
 import hmac
-import json
 from pathlib import Path
+from threading import RLock
 
 from filelock import FileLock
 
@@ -16,24 +15,84 @@ from .validation import validate
 
 
 class Session:
-    def __init__(self, path, limits=None):
-        self.path = Path(path).resolve()
+    def __init__(self, path=None, limits=None, *, workspace=None):
         self.limits = limits or Limits()
-        Project.load(self.path, limits=self.limits)
+        self.workspace = Path(workspace or (Path(path).resolve().parent if path else Path.cwd())).resolve()
+        require(self.workspace.is_dir(), "Workspace must be an existing directory")
+        self.path = None
+        self._cached = None
+        self._stamp = None
+        self._mutex = RLock()
+        if path:
+            self.open(path if workspace else Path(path).resolve())
+
+    def resolve(self, path):
+        resolved = (self.workspace / path).resolve()
+        require(resolved.is_relative_to(self.workspace), "Path is outside the workspace", "forbidden")
+        return resolved
+
+    @staticmethod
+    def stamp(path):
+        stat = path.stat()
+        return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+
+    def open(self, path):
+        with self._mutex:
+            resolved = self.resolve(path)
+            with FileLock(str(resolved) + ".lock", timeout=10, is_singleton=True):
+                stamp = self.stamp(resolved)
+                project = Project.load(resolved, limits=self.limits)
+                self.path, self._cached, self._stamp = resolved, project, stamp
+            return self.summary(project)
+
+    def create(self, path, width, height, background="transparent"):
+        with self._mutex:
+            resolved = self.resolve(path)
+            require(resolved.suffix.lower() == ".pix", "Document path must end in .pix")
+            require(resolved.parent.is_dir(), "Destination directory must exist")
+            with FileLock(str(resolved) + ".lock", timeout=10, is_singleton=True):
+                require(not resolved.exists(), "Destination already exists")
+                project = Project(width, height, background, limits=self.limits)
+                project.save(resolved)
+                self.path, self._cached, self._stamp = resolved, project, self.stamp(resolved)
+            return self.summary(project)
+
+    def summary(self, project):
+        return {
+            "path": str(self.path.relative_to(self.workspace)),
+            "canvas": project.state["canvas"],
+            "layer_count": len(project.state["layers"]),
+            "head": project.head,
+        }
 
     @contextmanager
     def project(self, write=False):
-        with FileLock(str(self.path) + ".lock", timeout=10, is_singleton=True):
-            project = Project.load(self.path, limits=self.limits)
-            yield project
-            if write:
-                project.save()
+        # Serialize threads and cooperating CLI/service writers. Revalidate only when disk changes.
+        with self._mutex:
+            require(self.path is not None, "Create or open a document first", "no_project")
+            with FileLock(str(self.path) + ".lock", timeout=10, is_singleton=True):
+                try:
+                    stamp = self.stamp(self.path)
+                    if self._cached is None or stamp != self._stamp:
+                        self._cached = Project.load(self.path, limits=self.limits)
+                        self._stamp = stamp
+                    revision = self._cached._revision
+                    yield self._cached
+                    if write:
+                        self._cached.save()
+                    if self._cached._revision != revision:
+                        self._stamp = self.stamp(self.path)
+                except BaseException:
+                    # A failed provider, operation or save must never leave unsaved cached state.
+                    self._cached = None
+                    self._stamp = None
+                    raise
 
     def inspect(self):
         with self.project() as p:
             return p.inspect()
 
-    def apply(self, operations, dry_run=False):
+    def apply(self, operations, dry_run=False, detail="compact"):
         from .render import EFFECTS
         from .operations import OPERATION_TYPES
 
@@ -58,7 +117,7 @@ class Session:
                     operation.get("action") != "import", "Import masks using embedded assets", "forbidden"
                 )
         with self.project(write=not dry_run) as p:
-            return p.apply(operations, dry_run=dry_run)
+            return p.apply(operations, dry_run=dry_run, detail=detail)
 
     def render(self, variables=None):
         with self.project() as p:
@@ -117,7 +176,7 @@ def create_app(path, *, token=None, limits=None):
     except ImportError as exc:
         raise PixError("missing_dependency", "Install pix-engine[server]") from exc
     session = Session(path, limits)
-    app = FastAPI(title="Pix Engine", version="0.7.0")
+    app = FastAPI(title="Pix Engine", version="0.8.0")
     if not token:
         app.add_middleware(
             TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver"]
@@ -159,7 +218,9 @@ def create_app(path, *, token=None, limits=None):
 
     @app.post("/operations")
     def operations(body: dict):
-        return session.apply(body.get("operations"), bool(body.get("dry_run", False)))
+        return session.apply(
+            body.get("operations"), bool(body.get("dry_run", False)), body.get("detail", "compact")
+        )
 
     @app.get("/render")
     def render():
@@ -207,61 +268,11 @@ def serve(path, host="127.0.0.1", port=8765, token=None, limits=None):
     uvicorn.run(create_app(path, token=token, limits=limits), host=host, port=port)
 
 
-def mcp_server(path, limits=None):
+def mcp_server(path=None, limits=None, *, workspace=None):
     try:
-        from mcp.server.fastmcp import FastMCP, Image
+        from .mcp_tools import build_server
+        import mcp.server.fastmcp  # noqa: F401
     except ImportError as exc:
         raise PixError("missing_dependency", "Install pix-engine[mcp]") from exc
-    session = Session(path, limits)
-    server = FastMCP(
-        "Pix",
-        instructions="Inspect the document, submit canonical operations, validate, and render. All editing is atomic; use dry_run to preview changes. No arbitrary filesystem access.",
-    )
 
-    @server.tool()
-    def pix_document_inspect() -> dict:
-        """Inspect canvas, stable layer IDs, editable effects, bounds, selection and history."""
-        return session.inspect()
-
-    @server.tool()
-    def pix_operations_apply(operations: list[dict], dry_run: bool = False) -> dict:
-        """Apply an atomic operation batch. E.g. [{type: move, target: logo, x: 10, y: 20}]."""
-        return session.apply(operations, dry_run)
-
-    @server.tool()
-    def pix_render_preview(variables: dict | None = None) -> Image:
-        """Render the current project as a PNG image without modifying it."""
-        return Image(data=session.render(variables), format="png")
-
-    @server.tool()
-    def pix_validate(profile: str | None = None, rules: list[str] | None = None) -> dict:
-        """Check bounds, export profiles and assertions without changing the document."""
-        return session.validate(profile, rules)
-
-    @server.tool()
-    def pix_history(action: str = "list", ref: str | None = None, count: int = 1) -> dict:
-        """List history or undo, redo, branch, checkpoint, checkout, begin, commit, rollback."""
-        return session.history(action, ref, count)
-
-    @server.tool()
-    def pix_import_image(image_base64: str, name: str = "image") -> dict:
-        """Import image bytes as an embedded layer. Does not read host file paths."""
-        require(len(image_base64) <= 90 * 1024 * 1024, "Image input exceeds limit")
-        try:
-            data = base64.b64decode(image_base64, validate=True)
-        except ValueError as exc:
-            raise PixError("invalid_image", "Invalid base64") from exc
-        return session.import_image(data, name)
-
-    @server.tool()
-    def pix_ai(command: str, args: list[str]) -> dict:
-        """Use a locally configured provider for ask, generate, ai, select, detect or ocr."""
-        return session.ai(command, args)
-
-    @server.resource("pix://operations")
-    def operations_reference() -> str:
-        from .schema import operation_schema
-
-        return json.dumps(operation_schema())
-
-    return server
+    return build_server(Session(path, limits, workspace=workspace))
