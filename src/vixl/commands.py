@@ -6,7 +6,7 @@ import shlex
 from pathlib import Path
 
 from .errors import VixlError, require
-from .render import EFFECTS
+from .constants import EFFECTS
 
 
 class Parser(argparse.ArgumentParser):

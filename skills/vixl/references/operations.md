@@ -100,7 +100,7 @@ Add with `{"type":"effect","name":NAME,...}` or the shorthand `{"type":NAME,...}
 | `temperature` | warm(+)/cool(−), e.g. 300 |
 | `tint` | magenta(+)/green(−), e.g. 10 |
 | `shadows`, `highlights` | % lift(+)/cut(−) |
-| `blur`, `gaussian-blur` | **radius in px via `amount`** (0–1000). ⚠️ a `radius` field is ignored for blur |
+| `blur`, `gaussian-blur` | **radius in px via `amount`** (0–1000). `radius` is normalized to `amount` and reported |
 | `sharpen` | factor (1 = none, 0–100) |
 | `grayscale`, `invert` | — |
 | `posterize` | bits 1–8 |
@@ -172,6 +172,6 @@ deletes it. One style per kind; all accept `enabled` (bool) and `opacity` (0–1
 ## Results
 
 Apply returns `{"success": true, "dry_run": bool, "operations": N, "changes": {...}}`.
-`detail:"compact"` (MCP/REST default; `Project.apply(..., detail="compact")`) keys changes by layer ID
-with `before`/`after` per changed field and `added`/`removed` layers; `detail:"full"` (CLI and Python
-default) includes complete before/after layer snapshots.
+`detail:"compact"` (CLI/MCP/REST default; `Project.apply(..., detail="compact")`) keys changes by layer ID
+with new values only; added layers include name, type and bounds. `detail:"full"` (Python default,
+CLI `--detail full`) includes complete before/after layer snapshots.

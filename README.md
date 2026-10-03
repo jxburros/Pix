@@ -14,7 +14,7 @@ This initial implementation covers the specification's core editor and automatio
 
 ## Install on Windows
 
-Download **Vixl-Setup-0.11.0-windows-x64.exe** from [GitHub Releases](https://github.com/jxburros/Vixl/releases/latest) and run it. The installer bundles Python and the REST/MCP dependencies, installs for your Windows account without administrator access, and adds `vixl` to your user PATH. Completely close and reopen your terminal application after installation:
+Download **Vixl-Setup-0.11.1-windows-x64.exe** from [GitHub Releases](https://github.com/jxburros/Vixl/releases/latest) and run it. The installer bundles Python and the REST/MCP dependencies, installs for your Windows account without administrator access, and adds `vixl` to your user PATH. Completely close and reopen your terminal application after installation:
 
 ```text
 vixl --version
@@ -257,4 +257,4 @@ python -m pip wheel . --no-deps --wheel-dir dist
 - [Specification coverage and known limitations](docs/coverage.md)
 - [Agent evaluation suite](evals/README.md)
 
-Vixl processes raster images in RGBA8 and retains procedural shapes and supported Bézier paths. SVG exports native simple geometry and embeds raster appearances for other layers; PNG preserves transparency and JPG flattens it against a chosen background. CMYK, RAW development, arbitrary SVG import, brushes, full animation timelines, desktop GUI/TUI, and GIMP/Photoshop project compatibility are outside this implementation. AI adapter contracts are tested offline; live providers require your own service, model, workflow, and credentials.
+Vixl processes raster images in RGBA8 and retains procedural shapes and supported Bézier paths. SVG preserves supported logo geometry, groups, gradients, pixel grids and outlined wordmarks; unsupported appearances use documented raster fallbacks; PNG preserves transparency and JPG flattens it against a chosen background. CMYK, RAW development, arbitrary SVG import, brushes, full animation timelines, desktop GUI/TUI, and GIMP/Photoshop project compatibility are outside this implementation. AI adapter contracts are tested offline; live providers require your own service, model, workflow, and credentials.

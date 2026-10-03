@@ -11,12 +11,11 @@ import tempfile
 
 from filelock import FileLock
 
-from . import Project, __version__
+from . import __version__
 from .assets import read_bounded
 from .commands import Parser, compile_command, compile_script, dimensions, normalize, pairs
 from .errors import VixlError, require
 from .model import Limits
-from .validation import assert_rule, dependencies, validate
 
 HELP = """Vixl — headless design engine for autonomous AI agents
 
@@ -74,7 +73,9 @@ def emit(value, machine=False):
     if value is None:
         return
     if machine or isinstance(value, (dict, list)):
-        print(json.dumps(value, indent=2, ensure_ascii=False, allow_nan=False))
+        # ASCII JSON is also valid UTF-8 and survives redirected legacy Windows
+        # streams. Never turn a successfully saved edit into an encoding error.
+        print(json.dumps(value, indent=2, ensure_ascii=True, allow_nan=False))
     else:
         print(value)
 
@@ -146,6 +147,8 @@ def dispatch(argv):
         return None, options.json
     if tokens[0] in ("--help", "-h", "help"):
         return HELP, options.json
+    from . import Project
+
     if options.plugins:
         from .plugins import enable_plugins
 
@@ -325,6 +328,8 @@ def dispatch(argv):
 
 
 def command_help(cmd, args):
+    from . import Project
+
     manual = {
         "open": "open FILE",
         "schema": "schema",
@@ -360,6 +365,8 @@ def command_help(cmd, args):
 
 
 def project_command(project, cmd, args, *, detail="compact"):
+    from .validation import assert_rule, dependencies, validate
+
     if cmd in ("palette", "template", "guidance", "font"):
         from .resource_cli import project_command as resource_command
 
@@ -626,6 +633,8 @@ def project_command(project, cmd, args, *, detail="compact"):
 
 
 def batch(args, limits, allow_linked):
+    from . import Project
+
     p = Parser(prog="vixl batch")
     p.add_argument("inputs", nargs="+")
     p.add_argument("--run", required=True)
@@ -690,6 +699,11 @@ def shell(options):
 
 
 def main(argv=None):
+    # Frozen Python ignores PYTHONIOENCODING. Configure text output explicitly;
+    # this does not change binary PNG/SVG/MCP writes through .buffer.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     argv = list(sys.argv[1:] if argv is None else argv)
     try:
         result, machine = dispatch(argv)

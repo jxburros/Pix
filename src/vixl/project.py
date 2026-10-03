@@ -517,7 +517,11 @@ class Project:
                         # Image assets are already compressed; recompressing them on every
                         # autosave cost far more time than it saved space.
                         for name, data in sorted(self.assets.items()):
-                            archive.writestr(name, data, zipfile.ZIP_STORED)
+                            archive.writestr(
+                                name,
+                                data,
+                                zipfile.ZIP_DEFLATED if name.startswith("fonts/") else zipfile.ZIP_STORED,
+                            )
                     stream.flush()
                     os.fsync(stream.fileno())
                 os.replace(temporary_path, path)
