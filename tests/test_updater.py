@@ -57,11 +57,11 @@ def release_fixture(monkeypatch, payload=None, release="0.8.0"):
     return info
 
 
-def test_stage_is_atomic_then_activate_and_rollback(install, monkeypatch):
+def test_background_stage_is_atomic_then_activate_and_rollback(install, monkeypatch):
     release_fixture(monkeypatch)
     probes = []
     monkeypatch.setattr(u, "probe", lambda root, release, folder=None: probes.append((release, folder)))
-    assert u.update(install)["status"] == "ready"
+    assert u.update(install, automatic=True)["status"] == "ready"
     state = u.read_state(install)
     assert state["current"] == "0.7.0" and state["pending"] == "0.8.0"
     assert (install / "versions/0.7.0/vixl-engine.exe").read_bytes() == b"baseline"
@@ -319,3 +319,73 @@ def test_launcher_rollback_does_not_depend_on_running_engine(install, monkeypatc
     assert launcher.main() == 0
     assert json.loads(capsys.readouterr().out)["current"] == "0.6.0"
     assert not u.read_state(install)["auto"]
+
+
+@pytest.mark.parametrize("automatic_enabled", [True, False])
+def test_explicit_update_activates_before_returning(install, monkeypatch, automatic_enabled):
+    release_fixture(monkeypatch)
+    u.preference(install, automatic_enabled)
+    probes = []
+    monkeypatch.setattr(u, "probe", lambda root, release, folder=None: probes.append((release, folder)))
+    value, _ = dispatch(["update", "--json"])
+    assert value["status"] == "updated"
+    assert value["current"] == "0.8.0" and value["previous"] == "0.7.0"
+    state = u.read_state(install)
+    assert state["current"] == "0.8.0" and state["pending"] is None
+    assert state["auto"] == automatic_enabled
+    assert probes[-1] == ("0.8.0", None)  # Probe again at the final installed path.
+    assert u.prepare_launch(install, allow_updates=False)[0] == u.executable(install, "0.8.0")
+    assert u.rollback(install)["current"] == "0.7.0"
+
+
+@pytest.mark.parametrize("fail_at_final_path", [False, True])
+def test_explicit_failed_healthcheck_keeps_previous_state(install, monkeypatch, fail_at_final_path):
+    release_fixture(monkeypatch)
+    before = u.read_state(install)
+
+    def probe(root, release, folder=None):
+        if not fail_at_final_path or folder is None:
+            raise u.UpdateError("broken runtime")
+
+    monkeypatch.setattr(u, "probe", probe)
+    with pytest.raises(u.UpdateError, match="broken runtime"):
+        u.update(install)
+    assert u.read_state(install) == before
+    assert u.executable(install, "0.7.0").read_bytes() == b"baseline"
+
+
+def test_explicit_update_activates_existing_pending_version(install, monkeypatch):
+    release_fixture(monkeypatch)
+    monkeypatch.setattr(u, "probe", lambda *a, **kw: None)
+    u.update(install, automatic=True)
+    assert u.status(install)["pending"] == "0.8.0"
+    assert u.update(install)["status"] == "updated"
+    assert u.status(install)["pending"] is None
+    assert u.status(install)["current"] == "0.8.0"
+
+
+@pytest.mark.parametrize("args, expected", [(["update"], "updated"), (["--json", "update", "--check"], "available")])
+def test_launcher_update_does_not_require_working_engine(install, monkeypatch, capsys, args, expected):
+    import importlib.util
+    import sys
+
+    path = Path(__file__).resolve().parents[1] / "distribution" / "launcher.py"
+    monkeypatch.setitem(sys.modules, "updater", u)
+    spec = importlib.util.spec_from_file_location("vixl_launcher_update_test", path)
+    launcher = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(launcher)
+    release_fixture(monkeypatch)
+    monkeypatch.setattr(sys, "executable", str(install / "bin/vixl.exe"))
+    monkeypatch.setattr(sys, "argv", ["vixl", *args])
+    monkeypatch.setattr(u, "probe", lambda *a, **kw: None)
+    monkeypatch.setattr(subprocess, "call", lambda *a, **kw: pytest.fail("must not execute active CLI"))
+    assert launcher.main() == 0
+    assert json.loads(capsys.readouterr().out)["status"] == expected
+    assert u.status(install)["current"] == ("0.8.0" if expected == "updated" else "0.7.0")
+
+
+@pytest.mark.parametrize("payload", [b"null", b"[]", b'"unexpected"', b'{"ok": false, "version": "0.7.0"}'])
+def test_probe_rejects_malformed_healthcheck_payload(install, monkeypatch, payload):
+    monkeypatch.setattr(subprocess, "run", lambda *a, **kw: subprocess.CompletedProcess(a, 0, payload, b""))
+    with pytest.raises(u.UpdateError):
+        u.probe(install, "0.7.0")

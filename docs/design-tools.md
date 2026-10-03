@@ -101,7 +101,7 @@ vixl info --region 40 40 300 200 --foreground '#ffffff'
 vixl info --target title
 ```
 
-Measurements return JSON: RGBA/hex point sample, alpha-weighted average RGB, mean alpha, four 256-bin histograms (excluding fully transparent pixels), and optional WCAG luminance contrast minimum/mean/maximum. `--foreground` compares the specified RGBA color against every pixel in the region; transparency composites over `--background white` by default. `--target` uses the actual rendered top-level layer against the stack below it, including opacity, styles and blending, with antialiased fringe pixels excluded. The target must be visible, drawable and within the canvas. Contrast thresholds are 4.5 for normal text and 3 for large text; font size eligibility remains the caller's responsibility.
+Measurements return JSON: RGBA/hex point sample, alpha-weighted average RGB, mean alpha, four 256-bin histograms (excluding fully transparent pixels), and optional WCAG luminance contrast minimum/mean/maximum. `--foreground` compares the specified RGBA color against every pixel in the region; transparency composites over `--background white` by default. `--target` uses the actual rendered layer (including nested group children) against the stack below it, including opacity, styles and blending, with antialiased fringe pixels excluded. The target must be visible and drawable. Top-level bounds must be within the canvas; grouped targets measure their visible canvas coverage. Contrast thresholds are 4.5 for normal text and 3 for large text; font size eligibility remains the caller's responsibility.
 
 Use `project.measure(...)`, REST POST `/measure`, or MCP `vixl_measure` for the same read-only results. These are measurements, not a GUI info panel.
 

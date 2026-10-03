@@ -70,7 +70,13 @@ def verify(executable, workspace):
             ]
         },
     )
-    cli("export", "logo.svg")
+    cli("apply", "-", operations={"operations": [
+        {"type": "group", "name": "logo", "targets": ["mark", "wordmark"]},
+    ]})
+    checked = cli("check", "--checks", "legibility")
+    assert checked["checked"]["text_layers"] == 1
+    exported = cli("export", "logo.svg", "--svg-policy", "strict")
+    assert exported["svg"] == {"vector_only": True, "raster_fallbacks": []}
     cli("export", "logo.png")
     svg = (workspace / "logo.svg").read_text(encoding="utf-8")
     assert not ET.fromstring(svg).findall(".//{*}image"), "Frozen fontTools failed to outline wordmark"

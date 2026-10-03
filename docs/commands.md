@@ -15,7 +15,7 @@ For the Windows installer edition, these commands work without an open project:
 | Command | Behavior |
 | --- | --- |
 | `update --check` | Check for a newer published stable release without downloading the runtime |
-| `update` | Download, verify and stage the latest stable runtime for the next launch |
+| `update` | Download, verify and activate the latest stable runtime before returning |
 | `updates status` | Show current/previous/pending version, automatic-update setting and last error |
 | `updates off` / `updates on` | Persist the preference; off also clears a queued activation |
 | `update --rollback` | Select the previous runtime for future launches and turn automatic updates off |
@@ -190,3 +190,9 @@ Presets save the active/target layer's complete effect stack. Applying one assig
 `vixl commands --json` lists available CLI commands and `vixl shapes --json` lists shape shortcuts. `COMMAND --help` works without an open document. Editing results use compact changes by default; `--detail full` restores snapshots.
 
 Use `palette list|show|add|apply`, `template list|show|add|new|apply`, `guidance list|show|add|apply|import|remove`, and `font list|import` for reusable design data. `providers list|add|refresh` and `models [--provider NAME] [--capability NAME] [--refresh]` discover available AI models. SVG joins PNG/JPEG/WebP/TIFF/AVIF export; PNG keeps transparency and JPEG uses `--background` for flattening. See [resource syntax and examples](agent-resources.md) and [model discovery](providers.md).
+
+### Group checks and SVG assurance
+
+`check` inspects visible group descendants, including nested text. Selecting a group includes its descendants; selecting a child checks that child. Bounds and safe areas use canvas coordinates, overlap uses rendered coverage, and thumbnail legibility accounts for ancestor scaling. Contrast compares grouped text with its backdrop through ancestor transforms and opacity. Hidden or fully transparent ancestors exclude their children. Repeated groups emit a coverage warning because geometry checks assess the base instance; visually inspect the repeated copies. Unmeasurable text produces a warning; `passed` means no errors, so also inspect `warnings` and `issues` and visually review the result.
+
+Saved SVG exports report `svg.vector_only` and `svg.raster_fallbacks` in the CLI result so embedded bitmaps are visible without opening the SVG metadata. Use `export logo.svg --svg-policy strict` to reject all embedded raster content. Exporting to `-` still writes only SVG bytes. Supported grouped shapes and outlined text remain vectors; unsupported appearances may rasterize in the default appearance policy.

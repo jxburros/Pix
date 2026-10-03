@@ -405,6 +405,22 @@ def layer_image(project, layer, bounds):
         image = gradient_image(project, layer, (layer["width"], layer["height"]))
     else:
         raise VixlError("invalid_layer", f"Unsupported layer type: {kind}")
+    image = transform_layer_image(project, layer, bounds, image)
+    # Cache is bounded in bytes as well as entry count.
+    if cacheable and image.width * image.height * 4 < 32 * 1024 * 1024:
+        while project._cache and (
+            len(project._cache) >= 16
+            or sum(i.width * i.height * 4 for i in project._cache.values()) + image.width * image.height * 4
+            > 64 * 1024 * 1024
+        ):
+            project._cache.pop(next(iter(project._cache)))
+        project._cache[key] = image.copy()
+    return image
+
+
+def transform_layer_image(project, layer, bounds, image):
+    """Apply the same geometry and appearance to a layer or an isolated group child."""
+    kind = layer["type"]
     if not layer.get("repeat"):
         image = image.resize(
             (layer["width"], layer["height"]),
@@ -448,15 +464,6 @@ def layer_image(project, layer, bounds):
         image.putalpha(Image.fromarray(np.uint8(alpha)))
     if layer["opacity"] != 1:
         image.putalpha(image.getchannel("A").point(lambda a: round(a * layer["opacity"])))
-    # Cache is bounded in bytes as well as entry count.
-    if cacheable and image.width * image.height * 4 < 32 * 1024 * 1024:
-        while project._cache and (
-            len(project._cache) >= 16
-            or sum(i.width * i.height * 4 for i in project._cache.values()) + image.width * image.height * 4
-            > 64 * 1024 * 1024
-        ):
-            project._cache.pop(next(iter(project._cache)))
-        project._cache[key] = image.copy()
     return image
 
 
@@ -511,6 +518,54 @@ def layer_surface(project, layer, bounds, size, index, visiting=None):
             tile.putalpha(tile.getchannel("A").point(lambda a: round(a * layer["opacity"])))
     visiting.remove(ident)
     return tile
+
+
+def layer_canvas_surface(project, layer, bounds=None, index=None):
+    """Render one drawable through its ancestors onto the document canvas.
+
+    Used for diagnostic coverage: group clipping, scaling, rotation, opacity,
+    masks and styles follow the normal renderer instead of assuming local
+    coordinates are canvas coordinates.
+    """
+    from .design_render import styled_image
+    from PIL import ImageChops
+
+    index = index or {item["id"]: item for item in resolved_layers(project)}
+    bounds = bounds or resolve_layout(project, layers=list(index.values()))
+    canvas = project.state["canvas"]
+    canvas_size = (canvas["width"], canvas["height"])
+
+    def container_size(item):
+        parent = index.get(item.get("parent"))
+        return (parent["content_width"], parent["content_height"]) if parent else canvas_size
+
+    surface = layer_surface(project, layer, bounds, container_size(layer), index)
+    parent = index.get(layer.get("parent"))
+    while parent:
+        size = container_size(parent)
+        tile = Image.new("RGBA", size)
+        if parent["visible"]:
+            b = bounds[parent["id"]]
+            if parent.get("repeat"):
+                from .design_render import repeat_bounds, repeat_items
+
+                repeated = Image.new("RGBA", repeat_bounds(parent))
+                for item, x, y in repeat_items(parent):
+                    source = transform_layer_image(project, item, (0, 0, item["width"], item["height"]), surface)
+                    repeated.alpha_composite(source, (x, y))
+                surface = repeated
+            source = transform_layer_image(project, {**parent, "opacity": 1}, b, surface)
+            tile.alpha_composite(source, b[:2])
+            if parent.get("styles"):
+                tile = styled_image(project, tile, parent["styles"])
+            if parent.get("clip"):
+                mask = layer_surface(project, index[parent["clip"]], bounds, size, index)
+                tile.putalpha(ImageChops.multiply(tile.getchannel("A"), mask.getchannel("A")))
+            if parent["opacity"] != 1:
+                tile.putalpha(tile.getchannel("A").point(lambda a: round(a * parent["opacity"])))
+        surface = tile
+        parent = index.get(parent.get("parent"))
+    return surface
 
 
 def render_layers(project, parent=None, size=None, background="transparent"):

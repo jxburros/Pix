@@ -45,29 +45,39 @@ def measure(
     coverage = None
     if target:
         layer = candidate.layer(target)
-        require(not layer.get("parent"), "Text contrast currently requires a top-level layer")
         b = resolve_layout(candidate)[layer["id"]]
         region = list(b)
-        from .render import resolved_layers
+        from .render import layer_canvas_surface, resolved_layers
 
         effective = next(item for item in resolved_layers(candidate) if item["id"] == layer["id"])
         require(
             layer["visible"] and layer["type"] != "adjustment", "Contrast target must be visible and drawable"
         )
-        # Measure the actual stack below the target, excluding target and overlays above it.
-        position = candidate.state["layers"].index(layer)
-        for other in candidate.state["layers"][position:]:
-            if not other.get("parent"):
-                other["visible"] = False
+        if layer.get("parent"):
+            coverage = layer_canvas_surface(candidate, effective).getchannel("A")
+            box = coverage.getbbox()
+            require(box is not None, "Target has no visible content")
+            region = [box[0], box[1], box[2] - box[0], box[3] - box[1]]
+        # Exclude overlays above the target at every level of the group tree,
+        # retaining the ancestors and siblings below it as the actual backdrop.
+        branch = layer
+        while branch:
+            position = candidate.state["layers"].index(branch)
+            for other in candidate.state["layers"][position + 1:]:
+                if other.get("parent") == branch.get("parent"):
+                    other["visible"] = False
+            branch = candidate.layer(branch["parent"]) if branch.get("parent") else None
+        layer["visible"] = False
         image = candidate.render()
         if foreground is None:
             layer["visible"] = True
             target_image = candidate.render()
             from .render import layer_image
 
-            tile = layer_image(candidate, effective, b)
-            coverage = Image.new("L", image.size)
-            coverage.paste(tile.getchannel("A"), b[:2])
+            if coverage is None:
+                tile = layer_image(candidate, effective, b)
+                coverage = Image.new("L", image.size)
+                coverage.paste(tile.getchannel("A"), b[:2])
     if region is not None:
         require(
             len(region) == 4 and all(isinstance(v, int) for v in region),
@@ -81,6 +91,7 @@ def measure(
         image = image.crop((x, y, x + w, y + h))
         if target_image is not None:
             target_image = target_image.crop((x, y, x + w, y + h))
+        if coverage is not None:
             coverage = coverage.crop((x, y, x + w, y + h))
     pixels = np.asarray(image)
     alpha = pixels[:, :, 3].astype(float) / 255

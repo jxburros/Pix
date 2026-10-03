@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.1
+- Activate explicit `vixl update` commands before returning, with a final installed-path health check, accurate active/previous version reporting, and rollback retention. Background updates still stage without disrupting running sessions.
+- Handle update/check/rollback in the stable Windows launcher even when the active engine cannot import. Existing launchers gain these controls by running the new installer.
+- Inspect visible nested group content in design checks and contrast measurements, accounting for group transforms, opacity, clipping and child targeting instead of reporting zero text layers.
+- Report vector-only status and raster fallback reasons in saved SVG CLI results; retain strict SVG rejection and vector group/text regressions.
+- Document same-session PATH setup, multiple-install/version diagnosis, and migration from older staged updaters.
+
 ## 0.12.0
 - Add 19 local, editable artistic filters: sepia, duotone, solarize, pixelate, halftone, crosshatch, ink-blot, stamp, photocopy, pencil-sketch, charcoal, find-edges, emboss, oil-paint, watercolor, swirl, ripple, wave and glass. No AI provider/model is used; seeded treatments are repeatable.
 - Share HarfBuzz shaping, bidi/script runs, layout and outlined glyph geometry between PNG and SVG, including ligatures, combining characters, supported Unicode scripts, wrapping/fitting, multiline/path text and warp presets. Outline rendering can slightly change text spacing/antialiasing from earlier versions.

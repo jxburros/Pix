@@ -451,7 +451,15 @@ def project_command(project, cmd, args, *, detail="compact"):
         if destination == "-":
             sys.stdout.buffer.write(data)
             return None, False
-        return {"output": destination, "bytes": len(data)}, False
+        result = {"output": destination, "bytes": len(data)}
+        if (a.format or Path(destination).suffix.lstrip(".")).upper() == "SVG":
+            import xml.etree.ElementTree as ET
+
+            root = ET.fromstring(data)
+            metadata = root.find("{*}metadata")
+            fallbacks = json.loads(metadata.text)["vixl"]["raster_fallbacks"] if metadata is not None else []
+            result["svg"] = {"vector_only": not bool(root.findall(".//{*}image")), "raster_fallbacks": fallbacks}
+        return result, False
     if cmd == "spacing":
         p = Parser(prog="vixl spacing")
         p.add_argument("--targets", nargs="+")
