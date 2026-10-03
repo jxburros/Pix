@@ -1,0 +1,20 @@
+{
+  "prompt": "In deck.vixl the most recent edit deleted the layer named logo by mistake. Restore it without losing any other layer, then move the layer named title 20 px further down.",
+  "document": "deck.vixl",
+  "setup": {"documents": [{"path": "deck.vixl", "width": 800, "height": 600, "background": "white", "batches": [
+    [{"type": "text", "name": "title", "text": "Quarterly Review", "size": 48, "x": 40, "y": 50, "color": "#222222"}],
+    [{"type": "shape", "shape": "ellipse", "name": "logo", "width": 80, "height": 80, "x": 680, "y": 40, "fill": "#3366ff"}],
+    [{"type": "text", "name": "note", "text": "Draft", "size": 24, "x": 40, "y": 540, "color": "#555555"}],
+    [{"type": "remove", "target": "logo"}]
+  ]}]},
+  "checks": [
+    {"type": "layer", "name": "logo restored", "match": {"name": "logo", "type": "shape"}},
+    {"type": "layer", "name": "note kept", "match": {"name": "note"}},
+    {"type": "layer_field", "name": "title moved down 20 px", "layer": "title", "field": "y", "equals": 70}
+  ],
+  "reference": [
+    {"tool": "vixl_document_open", "arguments": {"path": "deck.vixl"}},
+    {"tool": "vixl_history", "arguments": {"action": "undo"}},
+    {"tool": "vixl_operations_apply", "arguments": {"operations": [{"type": "move", "target": "title", "x": 0, "y": 20, "relative": true}]}}
+  ]
+}

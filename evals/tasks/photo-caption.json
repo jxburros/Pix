@@ -1,0 +1,25 @@
+{
+  "prompt": "Create post.vixl at 1080x1350. Import photo.jpg, scale it to exactly 1080 px wide (keep its aspect ratio) and place it at the top. Below the photo add a dark caption bar filling the rest of the canvas, with white text 'Summer Sale – 40% off' at font size 64 or more centered horizontally in the bar. Make sure vixl_check reports no errors, then export post.jpg.",
+  "document": "post.vixl",
+  "setup": {"images": [{"path": "photo.jpg", "width": 1600, "height": 1000, "gradient": ["#f4a261", "#2a9d8f"]}]},
+  "checks": [
+    {"type": "canvas", "width": 1080, "height": 1350},
+    {"type": "layer", "name": "photo at full width", "match": {"type": "raster", "width": 1080, "height": 675}},
+    {"type": "layer", "name": "caption", "match": {"type": "text", "text_contains": "40% off", "min_size": 64}},
+    {"type": "centered", "name": "caption centered horizontally", "layer": "caption", "axes": ["x"], "tolerance": 3},
+    {"type": "design", "name": "no design errors"},
+    {"type": "file", "path": "post.jpg", "image_size": [1080, 1350]}
+  ],
+  "reference": [
+    {"tool": "vixl_document_create", "arguments": {"path": "post.vixl", "width": 1080, "height": 1350, "background": "white"}},
+    {"tool": "vixl_import_image", "arguments": {"path": "photo.jpg", "name": "photo"}},
+    {"tool": "vixl_operations_apply", "arguments": {"operations": [
+      {"type": "resize", "target": "photo", "width": 1080},
+      {"type": "move", "target": "photo", "x": 0, "y": 0},
+      {"type": "solid", "name": "bar", "width": 1080, "height": 675, "x": 0, "y": 675, "color": "#111111"},
+      {"type": "text", "name": "caption", "text": "Summer Sale – 40% off", "size": 64, "color": "white", "x": "center", "y": 980}
+    ]}},
+    {"tool": "vixl_check", "arguments": {}},
+    {"tool": "vixl_export_file", "arguments": {"path": "post.jpg"}}
+  ]
+}

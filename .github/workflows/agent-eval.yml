@@ -1,0 +1,43 @@
+name: Agent eval
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Claude model ID
+        default: claude-opus-5-5
+      effort:
+        description: Effort (low, medium, high, xhigh, max; empty = model default)
+        default: ''
+      schema:
+        description: MCP schema mode (full or slim)
+        default: full
+      tasks:
+        description: Task id glob
+        default: '*'
+permissions:
+  contents: read
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e ".[dev]"
+      - name: Run the agent eval (spends API credits)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MODEL: ${{ inputs.model }}
+          EFFORT: ${{ inputs.effort }}
+          SCHEMA: ${{ inputs.schema }}
+          TASKS: ${{ inputs.tasks }}
+        run: |
+          args=(--agent claude --model "$MODEL" --schema "$SCHEMA" --tasks "$TASKS" --out eval-results --keep)
+          if [ -n "$EFFORT" ]; then args+=(--effort "$EFFORT"); fi
+          python -m evals.run "${args[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agent-eval-results
+          path: eval-results

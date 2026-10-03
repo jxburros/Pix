@@ -32,11 +32,12 @@ STYLES = ("drop-shadow", "stroke", "outer-glow", "color-overlay", "gradient-over
 
 
 def schemas(add):
-    from .schema import S, N, B, POSITIVE_INT, enum
+    from .schema import S, N, B, POSITIVE_INT, COORD, SIZE, enum
 
     refs = {"type": "array", "items": S, "minItems": 1, "maxItems": 512, "uniqueItems": True}
     obj = {"type": "object"}
-    geometry = {"name": S, "width": POSITIVE_INT, "height": POSITIVE_INT, "x": N, "y": N}
+    geometry = {"name": S, "width": SIZE, "height": SIZE, "x": COORD, "y": COORD}
+    board = {"name": S, "width": POSITIVE_INT, "height": POSITIVE_INT, "x": N, "y": N}
     add(
         "shape",
         {
@@ -67,7 +68,7 @@ def schemas(add):
     add("swatch", {"name": S, "color": S}, ["name", "color"])
     add(
         "artboard",
-        {**geometry, "preset": S, "background": S, "variables": obj, "targets": refs, "delete": B},
+        {**board, "preset": S, "background": S, "variables": obj, "targets": refs, "delete": B},
         ["name"],
     )
     add(
@@ -103,8 +104,8 @@ def schemas(add):
     add(
         "text-layout",
         {
-            "width": POSITIVE_INT,
-            "height": POSITIVE_INT,
+            "width": SIZE,
+            "height": SIZE,
             "fit": B,
             "warp": enum("none", "arc", "flag", "bulge"),
             "amount": N,

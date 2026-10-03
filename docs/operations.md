@@ -19,7 +19,7 @@ See [design tools and template production](design-tools.md) for groups, clipping
 
 `Project.apply` accepts a single operation, an array, or an `operations` envelope. The complete batch succeeds or none of its state/assets/history changes do. File reads may occur during validation; dry-run never saves or changes the live project. Dry-run returns the same before/after document changes that a real apply would make. Generated IDs in separate dry-run and apply calls need not match.
 
-Legacy `operation`/`layer` keys normalize to `type`/`target`. Supported type aliases are `set_opacity`, `set_blend`, `add_layer`, `remove_layer`, `move_layer`, `set_effect`, and `make_selection`. New code should use canonical keys. Unknown fields, malformed dimensions, nonfinite numbers, and unknown types are rejected.
+Operations are normalized before validation (see [interfaces](interfaces.md#forgiving-input-and-actionable-errors)): legacy `operation`/`layer` keys, type aliases (`set_opacity`, `rect`, `circle`, `add-text`, `drop_shadow`, …), camelCase keys, field aliases (`font_size`, `fill`/`color`), opacity percentages and CSS colors. Each rewrite is reported in the result's `normalized` list. Geometry fields `x`/`y` accept pixels, `"center"` or `"N%"`; `width`/`height` accept pixels or `"N%"`, relative to the canvas or the target's parent group. Unknown fields, malformed dimensions, nonfinite numbers, and unknown types are still rejected, with the failing operation index, field, allowed values and suggestions in the error.
 
 Common operation fields:
 
@@ -43,14 +43,14 @@ Common operation fields:
 
 History transitions and project lifecycle use explicit methods / commands, not editing operations. Provider results are recorded as `ai-result` / `ai-mask` audit events; those audit events are not public operation types. History snapshots and embedded assets reproduce their pixels without recontacting a provider.
 
-## `.vixl` format, version 1
+## `.vixl` format, version 2
 
-A ZIP archive contains `project.json`, `assets/<sha256>.png`, `masks/<sha256>.png`, and optionally `fonts/<sha256>.ttf`. Imports normalize orientation and convert to RGBA8 PNG. All members are checksummed. No archive paths are extracted to disk.
+A ZIP archive contains `project.json`, `assets/<sha256>.<png|jpg|webp>`, `masks/<sha256>.png`, and optionally `fonts/<sha256>.ttf`. Imported PNG, JPEG and WebP files keep their original bytes (orientation is applied when decoding); other formats are normalized to PNG. Image members are stored without recompression. All members are checksummed. No archive paths are extracted to disk. Version 1 archives (complete snapshots in every revision) still load; saving writes version 2.
 
-The manifest stores current state, stable object IDs, the history DAG with complete state snapshots, branch/checkpoint references, redo stack, and an optional open transaction. Image bytes are shared between revisions by content hash. Asset hashes identify bytes; revision and object IDs are intentionally unique, not pixel-deterministic. Archive timestamps/IDs are not intended for byte-identical builds.
+The manifest stores current state, stable object IDs, the history DAG (each revision holds either a full `state` snapshot or a `delta` from its parent; squashed revisions are marked `squashed`), branch/checkpoint references, redo stack, and an optional open transaction. Image bytes are shared between revisions by content hash. Asset hashes identify bytes; revision and object IDs are intentionally unique, not pixel-deterministic. Archive timestamps/IDs are not intended for byte-identical builds.
 
 Rendering resolves variables and acyclic layout constraints, loads source layers, crops/resizes/flips/rotates, applies effects with their captured selection masks, applies the layer mask and opacity, then composites bottom-to-top. Raster sources and text stay editable. Layer masks are defined in transformed local bounds; effect selections are defined in canvas coordinates. These conventions are explicit so scripts can reason about moving a selected/filtered layer.
 
 Default text size tracks the text's rendered bounds. Explicit resize turns off automatic sizing; editing text turns it back on. Imported fonts are embedded. The bundled default font makes basic text independent of host font installation. Exact raster output can still vary with Pillow/FreeType versions; pin your environment for reproducible builds.
 
-History is snapshot-based, not a replay engine. Undo, checkpoints, branching and comparison use captured state and assets. AI replay is a separate network operation and may vary with provider/model revisions even when a seed is retained.
+History is state-based (deltas plus periodic snapshots), not a replay engine. Undo, checkpoints, branching and comparison use captured state and assets. AI replay is a separate network operation and may vary with provider/model revisions even when a seed is retained.

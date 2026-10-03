@@ -1,0 +1,20 @@
+{
+  "prompt": "Create card.vixl at 1080x1080 with a white background. Add three 200x200 squares named sq1, sq2 and sq3 in one horizontal row, colored red, green and blue, with exactly 60 px between neighbours. Group them into a group named row and center the row horizontally and vertically on the canvas.",
+  "document": "card.vixl",
+  "checks": [
+    {"type": "canvas", "width": 1080, "height": 1080},
+    {"type": "spacing", "name": "60 px gaps", "options": {"targets": ["sq1", "sq2", "sq3"], "axis": "horizontal", "expected": 60}},
+    {"type": "layer", "name": "row group", "match": {"type": "group", "name": "row"}},
+    {"type": "centered", "name": "row centered", "layer": "row"}
+  ],
+  "reference": [
+    {"tool": "vixl_document_create", "arguments": {"path": "card.vixl", "width": 1080, "height": 1080, "background": "white"}},
+    {"tool": "vixl_operations_apply", "arguments": {"operations": [
+      {"type": "shape", "shape": "rectangle", "name": "sq1", "width": 200, "height": 200, "x": 180, "y": 440, "fill": "red"},
+      {"type": "shape", "shape": "rectangle", "name": "sq2", "width": 200, "height": 200, "x": 440, "y": 440, "fill": "green"},
+      {"type": "shape", "shape": "rectangle", "name": "sq3", "width": 200, "height": 200, "x": 700, "y": 440, "fill": "blue"},
+      {"type": "group", "name": "row", "targets": ["sq1", "sq2", "sq3"]}
+    ]}},
+    {"tool": "vixl_measure_spacing", "arguments": {"targets": ["sq1", "sq2", "sq3"], "axis": "horizontal", "expected": 60}}
+  ]
+}

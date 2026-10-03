@@ -170,9 +170,8 @@ def compile_command(tokens):
             if len(values) == 2:
                 data["target"] = values.pop(0)
             key = "direction" if cmd == "flip" else "value"
+            # Opacity 1–100 is read as a percentage by the shared normalizer.
             data[key] = values[0] if cmd in ("flip", "blend") else float(values[0])
-            if cmd == "opacity" and data[key] > 1:
-                data[key] /= 100
         return {**op, **{k: v for k, v in data.items() if v is not None}}
     elif cmd == "crop":
         p.add_argument("target")

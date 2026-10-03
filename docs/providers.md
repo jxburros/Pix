@@ -10,8 +10,21 @@ Create `~/.config/vixl/providers.json` (or set `VIXL_PROVIDERS` to another file)
   "providers": {
     "openai": {
       "type": "openai", "url": "https://api.openai.com/v1",
-      "key_env": "OPENAI_API_KEY", "model": "gpt-image-1",
-      "reasoning_model": "gpt-4.1-mini"
+      "key_env": "OPENAI_API_KEY", "model": "gpt-image-2.5-flare",
+      "reasoning_model": "gpt-5-mini"
+    },
+    "gemini": {
+      "type": "gemini", "key_env": "GEMINI_API_KEY",
+      "model": "gemini-3.1-flash-image", "vision_model": "gemini-3.8-flash",
+      "image_size": "2K"
+    },
+    "flux": {
+      "type": "bfl", "key_env": "BFL_API_KEY",
+      "model": "flux-2-pro", "fill_model": "flux-pro-1.0-fill", "job_timeout": 300
+    },
+    "claude": {
+      "type": "anthropic", "key_env": "ANTHROPIC_API_KEY",
+      "model": "claude-opus-5-5", "effort": "medium", "fallbacks": true
     },
     "local": {
       "type": "automatic1111", "url": "http://127.0.0.1:7860",
@@ -30,26 +43,30 @@ Create `~/.config/vixl/providers.json` (or set `VIXL_PROVIDERS` to another file)
 }
 ```
 
-Use environment variables for keys; omit `key_env` for unauthenticated local services. `url_env` can substitute for `url`. `VIXL_AI_PROVIDER` overrides the default. `--provider NAME` selects a provider per command. OpenAI can also be used without a config entry via `--provider openai` and `OPENAI_API_KEY`.
+Use environment variables for keys; omit `key_env` for unauthenticated local services. `url_env` can substitute for `url`. `VIXL_AI_PROVIDER` overrides the default. `--provider NAME` selects a provider per command. Four providers work without a config entry once their key is set: `--provider openai` (`OPENAI_API_KEY`), `--provider gemini` (`GEMINI_API_KEY`), `--provider flux` (`BFL_API_KEY`) and `--provider anthropic` (`ANTHROPIC_API_KEY`, or an `ant auth login` profile).
+
+The Anthropic provider uses the official `anthropic` SDK: install `vixl-engine[anthropic]` (included in the Windows installer and the `dev` extra). Images are downscaled to at most 1568 px on the long edge before sending, so Claude's pixel coordinates map back exactly to the document. Describe/detect/OCR use JSON-schema structured output. Server-side refusal fallbacks (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`) are enabled by default; set `"fallbacks": false` to disable them, for example on platforms that do not offer them. A request Claude still declines fails with `provider_refused`.
 
 ## Capability matrix
 
-| Feature | OpenAI adapter | Automatic1111 | ComfyUI | HTTP gateway |
-| --- | --- | --- | --- | --- |
-| Natural-language plan | Chat completions | No | No | `/plan` |
-| Description / detection / OCR | Multimodal chat, model-dependent accuracy | No | No | `/describe`, `/detect`, `/ocr` |
-| Semantic selection / background mask | No segmentation adapter | No | Configured mask workflow | `/segment`, `/background-remove` |
-| Text-to-image | Images API | txt2img | Configured workflow | `/generate` |
-| Inpaint / outpaint / image-to-image | Image edits; model size restrictions apply | img2img + mask | Configured workflow | `/generate` |
-| Upscale | No dedicated upscaler | extra-single-image | Configured workflow | `/upscale` |
+| Feature | OpenAI | Gemini | FLUX (BFL) | Anthropic | Automatic1111 | ComfyUI | HTTP gateway |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Natural-language plan | Chat completions | generateContent (JSON) | No | Messages API | No | No | `/plan` |
+| Description / detection / OCR | Multimodal chat | generateContent; `box_2d` converted | No | Structured output | No | No | `/describe`, `/detect`, `/ocr` |
+| Semantic selection / background mask | No | No | No | No | No | Configured mask workflow | `/segment`, `/background-remove` |
+| Text-to-image | Images API, sizes in multiples of 16 | Native image output, nearest aspect ratio | `flux-2-pro` | No | txt2img | Configured workflow | `/generate` |
+| Inpaint / outpaint / image-to-image | Image edits with mask | Edit with source (+ mask as a second image) | `flux-pro-1.0-fill` with mask; `input_image` edits | No | img2img + mask | Configured workflow | `/generate` |
+| Upscale | No | No | No | No | extra-single-image | Configured workflow | `/upscale` |
+
+Detection results are normalized for every adapter to `{"objects": [{"label", "box": [x, y, w, h]}]}` in document pixels.
 
 Adapters are tested with mocked HTTP payloads/workflow responses. Live provider inference has **not** been verified in this repository's development environment. Availability, model names, accepted dimensions, quotas, and workflow nodes belong to the configured service. Unsupported capabilities fail explicitly. There is no fake-success or placeholder-image fallback.
 
-OpenAI seeds are rejected because the image API does not expose deterministic seed control. Request a supported image size (`1024x1024`, for example); Vixl does not silently resize provider output. For arbitrary canvas outpainting, use a provider/workflow that supports the requested dimensions. The `--model` field selects OpenAI models and is passed to generic/workflow providers; Automatic1111 uses its server-loaded checkpoint (it does not switch checkpoints based on this field).
+OpenAI seeds are rejected because the image API does not expose deterministic seed control. Services with preset output sizes (OpenAI multiples of 16, Gemini aspect ratios and 1K/2K/4K presets, FLUX multiples of 16 up to 4 MP) are asked for the closest size; Vixl then fits the result to the requested canvas and records the provider's size as `resized_from` in the layer's provenance metadata. The HTTP gateway, Automatic1111 and ComfyUI must still return exactly the requested size. For arbitrary canvas outpainting, use a provider/workflow that supports the requested dimensions. The `--model` field selects OpenAI models and is passed to generic/workflow providers; Automatic1111 uses its server-loaded checkpoint (it does not switch checkpoints based on this field).
 
 ## HTTP gateway contract
 
-Each capability is `POST BASE_URL/<capability>` with JSON and optional `Authorization: Bearer ...`. No redirects are followed. Responses are bounded to 64 MiB; HTTP failures produce structured errors. Image fields are base64-encoded PNG data, without URLs. Vixl will not fetch arbitrary URLs returned by a provider.
+Each capability is `POST BASE_URL/<capability>` with JSON and optional `Authorization: Bearer ...`. No redirects are followed. Responses are bounded to 64 MiB; HTTP failures produce structured errors. Image fields are base64-encoded PNG data, without URLs. Vixl will not fetch arbitrary URLs returned by a gateway (only the FLUX adapter downloads its signed results, from approved hosts).
 
 Generation request:
 

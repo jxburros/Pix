@@ -13,7 +13,11 @@ a provider/configuration error, report it to the user instead of looping.
   "default": "local",
   "providers": {
     "openai": {"type": "openai", "url": "https://api.openai.com/v1", "key_env": "OPENAI_API_KEY",
-               "model": "gpt-image-1", "reasoning_model": "gpt-4.1-mini"},
+               "model": "gpt-image-2.5-flare", "reasoning_model": "gpt-5-mini"},
+    "gemini": {"type": "gemini", "key_env": "GEMINI_API_KEY", "model": "gemini-3.1-flash-image",
+               "vision_model": "gemini-3.8-flash"},
+    "flux":   {"type": "bfl", "key_env": "BFL_API_KEY", "model": "flux-2-pro", "fill_model": "flux-pro-1.0-fill"},
+    "claude": {"type": "anthropic", "key_env": "ANTHROPIC_API_KEY", "model": "claude-opus-5-5"},
     "local":  {"type": "automatic1111", "url": "http://127.0.0.1:7860", "upscaler": "R-ESRGAN 4x+", "options": {"steps": 25}},
     "comfy":  {"type": "comfyui", "url": "http://127.0.0.1:8188", "workflow": "/abs/workflow-api.json",
                "workflows": {"inpaint": "/abs/inpaint-api.json", "segment": "/abs/seg-api.json"},
@@ -25,23 +29,26 @@ a provider/configuration error, report it to the user instead of looping.
 
 - Keys are referenced by env-var name (`key_env`); `url_env` may replace `url`.
 - `VIXL_AI_PROVIDER` overrides `default`; `--provider NAME` / `provider=` overrides per call.
-- `--provider openai` works without a config entry if `OPENAI_API_KEY` is set.
+- `--provider openai|gemini|flux|anthropic` works without a config entry once `OPENAI_API_KEY`,
+  `GEMINI_API_KEY`, `BFL_API_KEY` or `ANTHROPIC_API_KEY` is set. Anthropic needs the
+  `vixl-engine[anthropic]` extra and covers describe/detect/OCR/plan only (Claude does not generate images).
 - Provider config is never read from `.vixl` files. MCP/REST servers use the server machine's config.
 
 ## Capability matrix
 
-| Capability | OpenAI | Automatic1111 | ComfyUI | HTTP gateway |
-| --- | --- | --- | --- | --- |
-| Plan (natural language → operations) | ✓ | — | — | `/plan` |
-| Describe / detect / OCR | ✓ (multimodal) | — | — | `/describe` `/detect` `/ocr` |
-| Segmentation / background mask | — | — | workflow | `/segment` `/background-remove` |
-| Text-to-image | ✓ | ✓ | workflow | `/generate` |
-| Inpaint / outpaint / img2img | ✓ (size limits) | ✓ | workflow | `/generate` |
-| Upscale | — | ✓ | workflow | `/upscale` |
+| Capability | OpenAI | Gemini | FLUX | Anthropic | Automatic1111 | ComfyUI | HTTP gateway |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Plan (natural language → operations) | ✓ | ✓ | — | ✓ | — | — | `/plan` |
+| Describe / detect / OCR | ✓ | ✓ | — | ✓ | — | — | `/describe` `/detect` `/ocr` |
+| Segmentation / background mask | — | — | — | — | — | workflow | `/segment` `/background-remove` |
+| Text-to-image | ✓ | ✓ | ✓ | — | ✓ | workflow | `/generate` |
+| Inpaint / outpaint / img2img | ✓ | ✓ | ✓ (fill) | — | ✓ | workflow | `/generate` |
+| Upscale | — | — | — | — | ✓ | workflow | `/upscale` |
 
-OpenAI rejects `seed` and needs supported sizes (e.g. `1024x1024`); Vixl never silently resizes
-provider output. So for OpenAI generation into an arbitrary canvas, generate at a supported size and
-then `resize`/`frame` the resulting layer.
+OpenAI rejects `seed`. OpenAI, Gemini and FLUX only produce certain sizes; Vixl requests the closest
+one and fits the result to the canvas, recording the provider's size as `resized_from` in the
+layer's provenance. Automatic1111, ComfyUI and the HTTP gateway must return the exact size.
+Detections from every provider come back as `objects[{label, box:[x,y,w,h]}]` in document pixels.
 
 ## Operations
 
@@ -60,7 +67,7 @@ then `resize`/`frame` the resulting layer.
 | Remove selected object | `vixl_ai_remove()` | `vixl ai remove --as removed-object` |
 | Content-aware fill selection | `vixl_ai_content_aware_fill(prompt?)` | `vixl ai content-aware-fill --prompt '…'` |
 | Describe / detect / OCR | `vixl_ai_analyze("describe"\|"detect"\|"ocr", query)` | `vixl ai describe` · `vixl detect objects\|faces` · `vixl ocr` |
-| Plan edits from English | `vixl_ai_plan(prompt)` then `apply=True` | `vixl ask '…'` then `vixl ask '…' --apply` |
+| Plan edits from English | `vixl_ai_plan(prompt)` then `apply=True` (server started with `--planner`) | `vixl ask '…'` then `vixl ask '…' --apply` |
 
 Behavior worth knowing:
 

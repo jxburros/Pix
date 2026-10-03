@@ -104,10 +104,21 @@ def check_document(project):
     check_state(project, project.state)
     require(0 < len(project.nodes) <= project.limits.max_history, "Invalid history length", "invalid_project")
     require(project.head in project.nodes, "Invalid history head", "invalid_project")
+    from .project import NODE_KEYS
+
     completed = set()
     for key, node in project.nodes.items():
-        require(node["id"] == key, "Invalid history node", "invalid_project")
-        check_state(project, node["state"])
+        require(
+            isinstance(node, dict)
+            and node.get("id") == key
+            and set(node) <= NODE_KEYS
+            and ("state" in node) != ("delta" in node)
+            and isinstance(node.get("operations"), list)
+            and (node.get("parent") is not None or "state" in node),
+            "Invalid history node",
+            "invalid_project",
+        )
+        # Historical states are reconstructed and validated when a revision is restored.
         chain = set()
         cursor = key
         while cursor is not None and cursor not in completed:
@@ -127,6 +138,10 @@ def check_document(project):
     if project.transaction:
         check_state(project, project.transaction["state"])
         require(isinstance(project.transaction["operations"], list), "Invalid transaction")
+    head = project._state_at(project.head)
+    check_state(project, head)
+    project._head_state = head
+    project._verified = {project.head}
     resolve_layout(project)
 
 

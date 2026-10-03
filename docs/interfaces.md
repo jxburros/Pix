@@ -83,46 +83,67 @@ Existing `vixl --project /absolute/path/poster.vixl mcp` configurations still wo
 
 ### Tools and workflow
 
+Vixl is designed to be driven mainly by agents. The intended loop is: create or open a document → `vixl_operations_apply` in atomic batches (use `dry_run` to test) → `vixl_check` to find problems without looking → `vixl_render_preview` (with `region` to zoom) → fix → `vixl_export_file`.
+
 | Tool | Purpose |
 | --- | --- |
-| `vixl_workspace_list(directory, offset, limit)` | Discover workspace paths; default 100 entries per page |
+| `vixl_workspace_list(directory, offset, limit)` | Discover workspace paths and the open documents |
 | `vixl_document_create(path, width, height, background)` | Create and activate a new `.vixl`; refuses overwrites |
-| `vixl_document_open(path)` | Switch active document; all previous successful edits are already saved |
-| `vixl_document_inspect(target?)` | Inspect the whole document, or one layer by ID/name |
-| `vixl_import_image(path, name)` | Read an image file into an embedded layer without passing base64 |
-| `vixl_operations_apply(operations, dry_run, detail)` | Atomic edits; schemas are included directly in tools/list |
-| `vixl_render_preview(variables, max_width, max_height, max_bytes)` | Native MCP image content, bounded dimensions and encoded size |
+| `vixl_document_open(path)` / `vixl_document_close(document)` | Activate an existing document / drop one from the session; edits are already saved |
+| `vixl_document_inspect(target?, detail)` | `compact` (default): canvas plus one line per layer with resolved `[x, y, w, h]` bounds; `full`: every stored field |
+| `vixl_import_image(path? \| data_base64?, name)` | Embed a workspace file or base64/data-URL bytes as a layer; returns id, size, bounds |
+| `vixl_operations_apply(operations, dry_run, detail)` | Atomic edits; schemas are included directly in tools/list (or on demand in slim mode) |
+| `vixl_operation_schema(types)` | Exact JSON Schema for named operation types |
+| `vixl_check(checks, targets, safe_area, avoid, thumbnail_width, ...)` | Design problems: bounds, text overlap, WCAG contrast, safe area/reserved zones, thumbnail legibility |
+| `vixl_render_preview(variables, max_width, max_height, max_bytes, region)` | Fast preview-resolution PNG; `region` zooms in (up to 8×) |
+| `vixl_render_compare(before, after, mode)` | Side-by-side or red-highlight diff of two revisions (`previous`, `head~N`, branch, checkpoint, ID) plus the changed region |
 | `vixl_export_file(path, quality, scale, profile, variables, background, overwrite)` | Save full-resolution PNG/JPEG/WEBP/TIFF/AVIF; return only file metadata |
-| `vixl_validate(profile, rules)` | Check bounds, profiles, assertions |
-| `vixl_history(action, ref, count, offset, limit)` | Undo/redo/transactions/branches/checkpoints; paginated summaries |
+| `vixl_measure`, `vixl_measure_spacing`, `vixl_validate` | Samples, channel statistics, contrast; spacing intent; assertions and profiles |
+| `vixl_history(action, ref, count, offset, limit)` | Undo/redo/transactions/branches/checkpoints; newest-first summaries |
 
-For example, create `poster.vixl` at 4000×3000, import `photo.jpg` as `photo`, apply `[{"type":"move","target":"photo","x":20}]`, request a preview, then export `poster.png`. Put the photo in the workspace first. File paths refer to the machine running Vixl; a remote client cannot use paths on a different machine unless it transfers the files there separately.
+Every document tool accepts an optional `document` path. Up to 8 documents stay open per session; addressing one with `document` does not change the active document.
 
-Relative and absolute paths are accepted within the workspace. Paths escaping it, including symlinks to outside directories, are rejected. Export refuses existing files unless `overwrite: true` is supplied, and cannot overwrite `.vixl` documents. Subdirectories must already exist. Operation `path`, `linked`, and `font` fields remain unavailable; use the import tool. Services do not enable third-party plugins or linked-file reads.
+For example, create `poster.vixl` at 4000×3000, import `photo.jpg` as `photo`, apply `[{"type":"move","target":"photo","x":20}]`, run `vixl_check`, request a preview, then export `poster.png`. File paths refer to the machine running Vixl; a client without access to that file system can send image bytes with `data_base64` instead.
+
+Relative and absolute paths are accepted within the workspace. Paths escaping it, including symlinks to outside directories, are rejected. Export refuses existing files unless `overwrite: true` is supplied, and cannot overwrite `.vixl` documents. Subdirectories must already exist. Operation `path`, `linked`, and `font` fields remain unavailable (checked after alias normalization); use the import tool. Services do not enable third-party plugins or linked-file reads.
+
+### Forgiving input and actionable errors
+
+Model-written operations are normalized before validation, the same way in every interface, and each rewrite is reported under `normalized` in the result so the agent learns the canonical form:
+
+- type and key spellings: `rect`/`circle`/`triangle` (→ `shape`), `add-text`, `drop_shadow`, camelCase and kebab-case keys, `font_size`, `fill`/`color`, `layer`/`layer_id` → `target`;
+- values: `opacity` 1–100 is a percentage; CSS `rgb()`/`rgba()` with 0–1 alpha; style setting aliases (`offsetX` → `dx`);
+- geometry: `x`/`y` accept `"center"` and `"N%"`, `width`/`height` accept `"N%"` (of the canvas, or of the parent group).
+
+Errors are JSON: `{"error", "message", "field", "operation_index", "operation_type", "allowed"?, "suggestions"?}`. Unknown layers suggest close (including case-insensitive) names and list available ones; unknown fields, enum values and operation types get did-you-mean suggestions; a failing batch names the operation that failed.
 
 ### Small responses and previews
 
-Canonical operation variants, required fields, effect names and enums are embedded in `vixl_operations_apply`'s input schema. The model does not need to fetch `vixl://operations`; that resource remains available as a reference. Repeated effect aliases are omitted from the advertised schema: use `{"type":"effect","name":"blur","radius":2}`.
+Tool results are minified JSON text with no duplicated structured copy. Advertised schemas omit pydantic titles and collapse optional fields. `vixl mcp --schema slim` advertises only the operation type names (about half the tool-list size) and the agent fetches fields with `vixl_operation_schema`. The provider-backed planner (`vixl_ai_plan`) is hidden unless `--planner` is passed, because the calling agent already plans its own edits.
 
-The default `detail: "compact"` response includes changed fields keyed by stable layer ID, added/removed layers, and layer order when it changes. A one-layer move does not echo the other layers. `detail: "full"` explicitly requests before/after snapshots. `dry_run: true` returns the same kind of summary without modifying the document. Inspect a single layer with `target` when more detail is needed. History lists default to 20 node summaries without replaying their operation payloads.
+The default `detail: "compact"` apply response returns, per stable layer ID, only the **new** values of changed fields (including resolved `bounds`), new layers as `name`/`type`/`bounds` plus their main content, removals, and layer order when it changes. `detail: "full"` returns before/after snapshots. `vixl_measure` summarizes channels as percentiles unless `histogram: "full"`.
 
-Preview defaults: **1024×1024 maximum and 1 MiB of encoded PNG data**, with no upscaling and preserved transparency/aspect ratio. If the PNG exceeds the byte budget, it shrinks further. You may request dimensions up to 4096 and a byte limit from 64 KiB to 4 MiB. MCP base64 transport adds roughly one third to the encoded byte size. Previews do not resize the document; file export uses full resolution unless a scale/profile is requested. Rendering still computes the full canvas before downsampling, so complex large images can take time.
+Preview defaults: **1024×1024 maximum and 1 MiB of encoded PNG data**, preserving transparency and aspect ratio. Previews render a geometrically scaled copy of the document (JPEG sources decode at reduced scale), so a 24-megapixel document previews in a fraction of a second; documents with canvas-sized effect selections fall back to a full render. `region: [x, y, w, h]` (pixels or percentages) zooms into part of the canvas. File export always uses full resolution unless a scale/profile is requested.
 
 ### Typed AI tools
 
 These call your [configured providers](providers.md) with named fields, without CLI flags:
 
 - `vixl_ai_generate(prompt, mode, width, height, seed, name, provider, model, negative_prompt, strength)`; mode is `generate`, `inpaint`, or `img2img`. Supply both dimensions or neither. Inpainting needs a selection.
-- `vixl_ai_remove_background(layer, provider)` and `vixl_ai_select_object(label, provider)`.
-- `vixl_ai_plan(prompt, apply, provider)`; defaults to a proposal without applying it.
-- `vixl_ai_analyze(capability, query, provider)`; capability is `describe`, `detect`, or `ocr`.
-- `vixl_ai_upscale(layer, scale, provider)`, `vixl_ai_regenerate(layer, prompt, seed, provider)`, and `vixl_ai_extend(prompt, left, right, top, bottom, seed, name, provider)`.
+- `vixl_ai_remove`, `vixl_ai_content_aware_fill`, `vixl_ai_select_subject`, `vixl_ai_remove_background(layer)` and `vixl_ai_select_object(label)`.
+- `vixl_ai_analyze(capability, query, provider)`; capability is `describe`, `detect`, or `ocr`. Detections return `objects[].box` as `[x, y, w, h]` document pixels for every provider.
+- `vixl_ai_upscale(layer, scale)`, `vixl_ai_regenerate(layer, prompt, seed)`, `vixl_ai_extend(prompt, left, right, top, bottom, seed, name)`.
+- `vixl_ai_plan(prompt, apply)` only with `vixl mcp --planner`.
 
-Provider capability limits still apply. Local provider settings and credentials remain on the server. Layer provenance is available through inspection. In 0.8.0, `vixl_ai(command,args)` is replaced by these tools, and `vixl_import_image(image_base64,...)` changes to `vixl_import_image(path,...)`. Reconnect clients to refresh their tool lists. CLI/Python AI calls remain compatible.
+Provider capability limits still apply. Local provider settings and credentials remain on the server. Layer provenance is available through inspection.
 
 ### Session performance and consistency
 
-REST and MCP retain the loaded project between calls. A file fingerprint (identity, size and high-resolution modification/change times) triggers a fresh load when an external edit is detected. Reads reuse the render cache. Thread and interprocess locks serialize edits; saves retain optimistic revision checks and atomic replacement. Failed edits, provider calls or saves discard the cached instance before the next access. Switching documents loads the selected file. Successful mutations still save the project archive; caching removes repeated archive loading/validation, not the cost of rendering or saving.
+REST and MCP retain loaded projects between calls. A file fingerprint (identity, size and high-resolution modification/change times) triggers a fresh load when an external edit is detected. Edit candidates share immutable history and the content-addressed render and decoded-image caches, so an edit costs roughly the same at revision 10 or 2,000. Thread and interprocess locks serialize edits; saves retain optimistic revision checks and atomic replacement, and store image assets without recompressing them. Failed edits, provider calls or saves discard the cached instance before the next access.
+
+### REST additions
+
+`POST /check` (same options as `vixl_check`), `POST /preview` (`max_width`, `max_height`, `max_bytes`, `region`, …; returns PNG) and `POST /compare` (`before`, `after`, `mode`; returns the summary plus `image_base64`). The REST service is bound to its one document and rejects a `document` field.
 
 ## Trusted extensions
 

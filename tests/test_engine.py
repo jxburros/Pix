@@ -43,7 +43,7 @@ def test_atomic_failure_and_dry_run():
     solid(p)
     before = deepcopy(p.manifest())
     with pytest.raises(VixlError):
-        p.apply([{"type": "move", "x": 9}, {"type": "opacity", "value": 2}])
+        p.apply([{"type": "move", "x": 9}, {"type": "opacity", "value": 250}])
     assert p.manifest() == before
     result = p.apply([{"type": "move", "x": 12}], dry_run=True)
     assert result["changes"]["layers"]["after"][0]["x"] == 12

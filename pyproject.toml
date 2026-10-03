@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "vixl-engine"
-version = "0.10.0"
+dynamic = ["version"]
 description = "A programmable image-document engine for humans, scripts, and AI agents"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -13,10 +13,14 @@ dependencies = ["Pillow>=11.3,<13", "numpy>=2.0,<3", "httpx>=0.28,<1", "filelock
 [project.optional-dependencies]
 server = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1"]
 mcp = ["mcp>=1.12,<2"]
-dev = ["pytest>=8,<10", "fastapi>=0.115,<1", "uvicorn>=0.30,<1", "mcp>=1.12,<2", "ruff>=0.12"]
+anthropic = ["anthropic>=1.11,<2"]
+dev = ["pytest>=8,<10", "fastapi>=0.115,<1", "uvicorn>=0.30,<1", "mcp>=1.12,<2", "anthropic>=1.11,<2", "ruff>=0.12"]
 
 [project.scripts]
 vixl = "vixl.cli:main"
+
+[tool.hatch.version]
+path = "src/vixl/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/vixl"]

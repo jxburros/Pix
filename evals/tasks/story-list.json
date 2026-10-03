@@ -1,0 +1,23 @@
+{
+  "prompt": "Create story.vixl at 1080x1920 with a vertical gradient background from #1a2a6c to #b21f1f. Add three white text layers named item1, item2 and item3 reading 'Plan', 'Build' and 'Ship', each at font size 90 or more, left-aligned at x=120 and stacked top to bottom with equal vertical gaps. vixl_check must report no errors.",
+  "document": "story.vixl",
+  "checks": [
+    {"type": "canvas", "width": 1080, "height": 1920},
+    {"type": "layer", "name": "gradient background", "match": {"type": "gradient"}},
+    {"type": "layer", "name": "three large items", "match": {"type": "text", "min_size": 90}, "min": 3},
+    {"type": "spacing", "name": "equal gaps", "options": {"targets": ["item1", "item2", "item3"], "axis": "vertical", "tolerance": 2}},
+    {"type": "layer_field", "name": "left edge", "layer": "item1", "field": "x", "equals": 120},
+    {"type": "design", "name": "no design errors"}
+  ],
+  "reference": [
+    {"tool": "vixl_document_create", "arguments": {"path": "story.vixl", "width": 1080, "height": 1920}},
+    {"tool": "vixl_operations_apply", "arguments": {"operations": [
+      {"type": "gradient", "name": "background", "start": "#1a2a6c", "end": "#b21f1f"},
+      {"type": "text", "name": "item1", "text": "Plan", "size": 110, "x": 120, "y": 600, "color": "white"},
+      {"type": "text", "name": "item2", "text": "Build", "size": 110, "x": 120, "y": 820, "color": "white"},
+      {"type": "text", "name": "item3", "text": "Ship", "size": 110, "x": 120, "y": 1040, "color": "white"},
+      {"type": "distribute", "targets": ["item1", "item2", "item3"], "axis": "vertical"}
+    ]}},
+    {"tool": "vixl_check", "arguments": {}}
+  ]
+}

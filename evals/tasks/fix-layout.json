@@ -1,0 +1,26 @@
+{
+  "prompt": "poster.vixl has layout problems. Use vixl_check to find them and fix every error without deleting or rewording any text.",
+  "document": "poster.vixl",
+  "setup": {"documents": [{"path": "poster.vixl", "width": 1080, "height": 1350, "background": "white", "batches": [
+    [{"type": "text", "name": "title", "text": "Summer Festival", "size": 110, "x": 80, "y": 200, "color": "#222222"},
+     {"type": "text", "name": "subtitle", "text": "Live music all weekend", "size": 60, "x": 90, "y": 270, "color": "#dddddd"},
+     {"type": "text", "name": "footer", "text": "July 12-14", "size": 50, "x": 900, "y": 1320, "color": "#333333"}]
+  ]}]},
+  "checks": [
+    {"type": "design", "name": "no design errors"},
+    {"type": "layer", "name": "title kept", "match": {"type": "text", "text": "Summer Festival"}},
+    {"type": "layer", "name": "subtitle kept", "match": {"type": "text", "text": "Live music all weekend"}},
+    {"type": "layer", "name": "footer kept", "match": {"type": "text", "text": "July 12-14"}},
+    {"type": "layer", "name": "no extra text", "match": {"type": "text"}, "min": 3, "max": 3}
+  ],
+  "reference": [
+    {"tool": "vixl_document_open", "arguments": {"path": "poster.vixl"}},
+    {"tool": "vixl_check", "arguments": {}},
+    {"tool": "vixl_operations_apply", "arguments": {"operations": [
+      {"type": "move", "target": "subtitle", "x": 90, "y": 360},
+      {"type": "text-set", "target": "subtitle", "color": "#555555"},
+      {"type": "move", "target": "footer", "x": 80, "y": 1200}
+    ]}},
+    {"tool": "vixl_check", "arguments": {}}
+  ]
+}
