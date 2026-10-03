@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.12.1
+- Reject inaccessible pending runtimes without crashing the launcher, including Windows access-denied errors during file inspection. Preserve the active runtime even when no previous version exists, retain the underlying error/path in update status, and keep update settings available without starting the engine.
 - Activate explicit `vixl update` commands before returning, with a final installed-path health check, accurate active/previous version reporting, and rollback retention. Background updates still stage without disrupting running sessions.
 - Handle update/check/rollback in the stable Windows launcher even when the active engine cannot import. Existing launchers gain these controls by running the new installer.
 - Inspect visible nested group content in design checks and contrast measurements, accounting for group transforms, opacity, clipping and child targeting instead of reporting zero text layers.

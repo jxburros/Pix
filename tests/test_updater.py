@@ -389,3 +389,137 @@ def test_probe_rejects_malformed_healthcheck_payload(install, monkeypatch, paylo
     monkeypatch.setattr(subprocess, "run", lambda *a, **kw: subprocess.CompletedProcess(a, 0, payload, b""))
     with pytest.raises(u.UpdateError):
         u.probe(install, "0.7.0")
+
+
+@pytest.fixture
+def launcher(install, monkeypatch):
+    import importlib.util
+    import sys
+
+    path = Path(__file__).resolve().parents[1] / "distribution" / "launcher.py"
+    monkeypatch.setitem(sys.modules, "updater", u)
+    spec = importlib.util.spec_from_file_location("vixl_launcher_access_test", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.setattr(sys, "executable", str(install / "bin/vixl.exe"))
+    return module
+
+
+def deny_stat(monkeypatch, blocked):
+    original = Path.stat
+
+    def stat(path, *args, **kwargs):
+        if path == blocked:
+            raise PermissionError(13, "Access is denied", str(path))
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", stat)
+
+
+@pytest.mark.parametrize("failure", ["stat", "start"])
+def test_denied_pending_runtime_launches_current_without_previous_version(
+    install, monkeypatch, launcher, capsys, failure,
+):
+    import sys
+    import time
+
+    blocked = u.executable(install, "0.8.0")
+    blocked.parent.mkdir()
+    blocked.write_bytes(b"blocked runtime")
+    state = u.read_state(install)
+    state.update(pending="0.8.0", last_check=time.time())
+    u.atomic_json(install / "install.json", state)
+    if failure == "stat":
+        deny_stat(monkeypatch, blocked)
+
+    def denied_run(*args, **kwargs):
+        assert failure == "start", "stat failure must be handled before starting the candidate"
+        raise PermissionError(13, "Access is denied", str(blocked))
+
+    monkeypatch.setattr(subprocess, "run", denied_run)
+    calls = []
+    monkeypatch.setattr(subprocess, "call", lambda argv, **kw: calls.append(argv) or 0)
+    monkeypatch.setattr(sys, "argv", ["vixl", "--version"])
+    assert launcher.main() == 0
+    assert calls == [[str(u.executable(install, "0.7.0")), "--version"]]
+    state = u.read_state(install)
+    assert state["current"] == "0.7.0" and state["previous"] is None
+    assert state["pending"] is None and state["rejected"] == "0.8.0"
+    assert str(blocked) in state["last_error"] and "Access is denied" in state["last_error"]
+    assert capsys.readouterr().err == ""
+    # Do not keep trying the rejected executable on later launches.
+    assert launcher.main() == 0
+    assert len(calls) == 2
+
+
+def test_explicit_update_of_denied_existing_candidate_keeps_active_runtime(install, monkeypatch):
+    release_fixture(monkeypatch)
+    blocked = u.executable(install, "0.8.0")
+    blocked.parent.mkdir()
+    blocked.write_bytes(b"blocked runtime")
+    state = u.read_state(install)
+    state["pending"] = "0.8.0"
+    u.atomic_json(install / "install.json", state)
+    deny_stat(monkeypatch, blocked)
+    monkeypatch.setattr(
+        subprocess, "run",
+        lambda *a, **kw: subprocess.CompletedProcess(a, 0, b'{"ok":true,"version":"0.8.0"}', b""),
+    )
+    with pytest.raises(VixlError, match="Access is denied") as caught:
+        dispatch(["update"])
+    assert caught.value.code == "update_error"
+    assert u.read_state(install) == state
+    assert u.executable(install, "0.7.0").read_bytes() == b"baseline"
+    assert u.prepare_launch(install)[0] == u.executable(install, "0.7.0")
+    assert u.read_state(install)["pending"] is None
+
+
+@pytest.mark.parametrize("args", [["updates"], ["updates", "status"], ["updates", "off"], ["updates", "on"]])
+def test_launcher_update_settings_work_when_active_and_pending_are_denied(
+    install, monkeypatch, launcher, capsys, args,
+):
+    import sys
+
+    state = u.read_state(install)
+    state["pending"] = "0.8.0"
+    u.atomic_json(install / "install.json", state)
+    deny_stat(monkeypatch, u.executable(install, "0.7.0"))
+    monkeypatch.setattr(u, "probe", lambda *a, **kw: pytest.fail("must not probe pending version"))
+    monkeypatch.setattr(subprocess, "call", lambda *a, **kw: pytest.fail("must not launch active version"))
+    monkeypatch.setattr(sys, "argv", ["vixl", *args, "--json"])
+    assert launcher.main() == 0
+    result = json.loads(capsys.readouterr().out)
+    if args[-1] in ("on", "off"):
+        assert result == {"automatic": args[-1] == "on"}
+        if args[-1] == "off":
+            assert u.read_state(install)["pending"] is None
+    else:
+        assert result["current"] == "0.7.0" and result["pending"] == "0.8.0"
+
+
+@pytest.mark.parametrize("failure", ["stat", "start"])
+def test_denied_active_runtime_reports_actionable_error_without_traceback(
+    install, monkeypatch, launcher, capsys, failure,
+):
+    import sys
+
+    active = u.executable(install, "0.7.0")
+    if failure == "stat":
+        deny_stat(monkeypatch, active)
+    monkeypatch.setenv("VIXL_NO_UPDATE", "1")
+    monkeypatch.setattr(sys, "argv", ["vixl", "--version", "--json"])
+
+    def denied_call(*a, **kw):
+        assert failure == "start"
+        raise PermissionError(13, "Access is denied", str(active))
+
+    monkeypatch.setattr(subprocess, "call", denied_call)
+    before = u.read_state(install)
+    assert launcher.main() == 1
+    output = capsys.readouterr()
+    assert output.out == ""
+    result = json.loads(output.err)
+    assert result["error"] == "update_error"
+    assert str(active) in result["message"] and "updates status" in result["message"]
+    assert "Traceback" not in output.err
+    assert u.read_state(install) == before

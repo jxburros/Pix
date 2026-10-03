@@ -2,6 +2,7 @@
 Only GitHub transport is replaced; installed frozen executables are really executed.
 """
 
+import csv
 import hashlib
 import json
 import os
@@ -69,7 +70,29 @@ result = subprocess.run([str(launcher), "--version"], capture_output=True, text=
 assert result.returncode == 0 and result.stdout.strip() == __version__, result.stderr
 state = updater.read_state(root)
 assert state["current"] == __version__ and state["pending"] is None and state["rejected"] == broken
+# Reproduce access denied using a real Windows file ACL, including the user's
+# no-previous-version state. Restore only this test file's deny entry afterward.
+denied = "999.0.1"
+blocked = updater.executable(root, denied)
+blocked.parent.mkdir()
+blocked.write_bytes(b"inaccessible candidate")
+identity = subprocess.check_output(["whoami", "/user", "/fo", "csv", "/nh"], text=True)
+sid = next(csv.reader(identity.strip().splitlines()))[1]
+subprocess.run(["icacls", str(blocked), "/deny", f"*{sid}:(RX)"], check=True, capture_output=True)
+try:
+    state = updater.read_state(root)
+    state.update(pending=denied, previous=None, last_check=time.time())
+    updater.atomic_json(root / "install.json", state)
+    result = subprocess.run([str(launcher), "--version"], capture_output=True, text=True, env=env, timeout=90)
+    assert result.returncode == 0 and result.stdout.strip() == __version__, result.stderr
+    assert "Traceback" not in result.stderr
+    state = updater.read_state(root)
+    assert state["current"] == __version__ and state["previous"] is None
+    assert state["pending"] is None and state["rejected"] == denied
+    assert str(blocked) in state["last_error"] and "Access is denied" in state["last_error"]
+finally:
+    subprocess.run(["icacls", str(blocked), "/remove:d", f"*{sid}"], check=True, capture_output=True)
 # A failed user command is not a reason to roll back a healthy application.
 subprocess.run([str(launcher), "not-a-command"], capture_output=True, env=env, timeout=60)
 assert updater.read_state(root)["current"] == __version__
-print("Native checksum, health check, immediate activation and failed-candidate recovery passed.")
+print("Native checksum, health check, immediate activation, corrupt/denied-candidate recovery passed.")
