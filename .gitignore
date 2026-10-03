@@ -9,6 +9,7 @@ build/
 .vixl-session.json
 *.vixl.lock
 *.vixl
+!examples/after-hours.vixl
 .env
 
 examples/output/
