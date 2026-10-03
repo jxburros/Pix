@@ -24,6 +24,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Installed export failed' }
     & $Python distribution/test_native_mcp.py "$Install\bin\vixl.exe"
     if ($LASTEXITCODE -ne 0) { throw 'Installed MCP verification failed' }
+    & $Python distribution/test_native_design.py "$Install\bin\vixl.exe"
+    if ($LASTEXITCODE -ne 0) { throw 'Installed logo workflow verification failed' }
     vixl updates off
     if ($LASTEXITCODE -ne 0) { throw 'Update preferences failed' }
     $Status = (vixl updates status --json | ConvertFrom-Json)

@@ -26,7 +26,7 @@ Key properties to rely on:
 
 ## New in 0.11
 
-Discover commands with `vixl commands --json` and shape shortcuts with `vixl shapes`. Command help works without an open document. CLI edits now default to compact results; add `--detail full` for snapshots. Use named palettes, built-in/custom templates, overall/style guidance, explicit HTTPS/local fonts, expanded shapes and single-contour Bézier paths. SVG keeps supported simple geometry as vectors and embeds other appearances as PNGs. PNG preserves transparency; JPG flattens against an explicit background.
+Discover commands with `vixl commands --json` and shape shortcuts with `vixl shapes`. Command help works without an open document. CLI edits now default to compact results; add `--detail full` for snapshots. Use named palettes, built-in/custom templates, overall/style guidance, explicit HTTPS/local fonts, expanded shapes and single-contour Bézier paths. SVG retains supported shapes, gradients, groups, pixels, boolean silhouettes and outlined ASCII wordmarks as vectors; metadata identifies any raster fallbacks. PNG preserves transparency; JPG flattens against an explicit background.
 
 See [resources](references/resources.md) for the new MCP tools and CLI/operation examples. Discover authenticated provider models with `vixl models --refresh` or `vixl_models_list`; native Anthropic/Gemini and OpenAI-compatible Mistral/Meta join the existing providers. Midjourney requires an authorized HTTP gateway, not a fabricated official API.
 
@@ -114,8 +114,10 @@ Or put the operations in a file and run `vixl -p poster.vixl apply ops.json` (at
 
 - **Always pass the project explicitly in the CLI** (`-p file.vixl`). `vixl open` stores a
   per-directory default in `.vixl-session.json`, which is fragile across concurrent work.
-- **CLI edit output is verbose** (full before/after layer snapshots). Pipe to `> /dev/null` or
-  read only `success`; use `inspect LAYER` afterwards. MCP/REST default to `detail:"compact"`.
+- **CLI edits default to compact output** with changed values and layer IDs. Use `--detail full`
+  for complete before/after snapshots. MCP/REST also default to `detail:"compact"`.
+- **CLI JSON is ASCII-escaped UTF-8**, so Unicode names and normalization notes survive Windows
+  redirected output. Parse JSON normally; escapes decode to the original text.
 - **Errors are structured.** MCP tool errors and CLI `--json` failures are
   `{"error": CODE, "message", "field", "operation_index", "operation_type", "allowed"?, "suggestions"?}`.
   Fix the named operation and field (try a suggestion) and retry; a failed batch changed nothing.
@@ -152,7 +154,7 @@ Or put the operations in a file and run `vixl -p poster.vixl apply ops.json` (at
 - **Limits:** 40 MP per canvas/layer, 16 384 px per side, 512 layers, 256 effects/layer,
   1 000 operations per batch. History keeps 2 000 revisions; older unreferenced ones are squashed
   automatically, so long sessions never lock. Animation frames ≤ 256×256, ≤ 256 frames.
-- **Not supported** (don't promise them): SVG/Bézier editing, brushes, skew/perspective, CMYK/ICC,
+- **Not supported** (don't promise them): arbitrary SVG import, path arcs/multiple contours, brushes, skew/perspective, CMYK/ICC,
   RAW, PSD/XCF import, full animation timelines, GUI.
 
 ## 5. Feature map (where to look)

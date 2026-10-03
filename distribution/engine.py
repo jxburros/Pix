@@ -20,6 +20,10 @@ def main():
             p = Project(64, 32)
             p.apply({"type": "text", "text": "Vixl", "size": 16})
             assert p.export(format="PNG").startswith(b"\x89PNG")
+            import xml.etree.ElementTree as ET
+
+            svg = ET.fromstring(p.export(format="SVG"))
+            assert svg.findall(".//{*}path") and not svg.findall(".//{*}image")
             path = Path(tmp) / "health.vixl"
             p.save(path)
             create_app(path)

@@ -12,37 +12,11 @@ import numpy as np
 from PIL import Image, ImageColor, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
 
 from .assets import decode, read_bounded
+from .constants import EFFECTS as EFFECTS
 from .errors import VixlError, require
 from .model import finite
 
 BLENDS = ("normal", "multiply", "screen", "overlay", "darken", "lighten", "difference", "add", "subtract")
-EFFECTS = (
-    "brightness",
-    "contrast",
-    "saturation",
-    "hue",
-    "exposure",
-    "gamma",
-    "temperature",
-    "tint",
-    "shadows",
-    "highlights",
-    "levels",
-    "curves",
-    "blur",
-    "gaussian-blur",
-    "sharpen",
-    "grayscale",
-    "invert",
-    "posterize",
-    "threshold",
-    "noise",
-    "grain",
-    "vignette",
-    "auto-tone",
-    "auto-color",
-    "auto-contrast",
-)
 CANVAS_PRESETS = {
     "instagram-square": (1080, 1080),
     "instagram-post": (1080, 1080),

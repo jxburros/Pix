@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.1
+- Fix Windows CLI normalization/Unicode response encoding, including frozen executables and redirected output; successful saved edits no longer fail while printing normalization notes.
+- Correct native SVG rotation to use the same clockwise direction as PNG.
+- Preserve scalable logo groups, gradients, pixel grids, opaque boolean silhouettes and outlined plain ASCII wordmarks in SVG. Report remaining raster fallbacks in SVG metadata; complex text and unsupported appearances remain faithful raster fallbacks.
+- Compress embedded fonts again while retaining original compressed image bytes without recompression; restore compact font-heavy logo project sizes.
+- Load the image engine lazily for version/global-help commands, reducing startup overhead on discovery paths.
+- Reconcile agent skill/output/blur/path documentation, and add independent SVG rendering plus frozen Windows workflow regressions.
+
 ## 0.11.0
 
 - Position Vixl and its documentation as a headless application designed for autonomous AI agents.

@@ -68,13 +68,13 @@ Python installations intentionally do not self-update or invoke pip. They return
 
 To publish a stable release:
 
-1. Update the version in `pyproject.toml`, `src/vixl/__init__.py`, and the displayed API/document versions; update release notes/documentation as needed.
+1. Update the single-sourced version in `src/vixl/__init__.py` (package/API versions derive from it), and the displayed document versions; update release notes/documentation as needed.
 2. Run tests and review the PR's **Windows installer and releases** workflow. It runs a real silent installer, verifies PATH lookup, creates/exports a project using the frozen runtime, stages and activates an update with mocked network transport, checks corrupted-candidate recovery, and uninstalls while preserving a user project and existing PATH entries.
 3. Tag the reviewed commit with its exact version and push the tag:
 
    ```bash
-   git tag v0.11.0 <reviewed-commit>
-   git push origin v0.11.0
+   git tag v0.11.1 <reviewed-commit>
+   git push origin v0.11.1
    ```
 
 4. The tag workflow re-runs tests, checks tag/package-version consistency, builds the distributions, and creates a **draft** GitHub release. It uploads every artifact before publishing it as the latest stable release. No release becomes visible to the updater while files are still being uploaded.
