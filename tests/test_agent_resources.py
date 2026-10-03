@@ -18,7 +18,7 @@ from vixl.ai import encoded, make_provider, plan
 from vixl.fonts import import_font
 from vixl.geometry import EXTRA_SHAPES
 from vixl.interfaces import Session, create_app, mcp_server
-from vixl.models import discovery_command, discover, load_config, route, save_provider
+from vixl.models import catalog_provider, discovery_command, discover, load_config, route, save_provider
 from vixl.resources import catalog, create_template, get, register
 
 
@@ -361,13 +361,24 @@ def test_native_adapter_planning_and_gemini_image(monkeypatch):
         calls.append((route, kw))
         return {"content": [{"type": "text", "text": '{"operations":[{"type":"shape","shape":"triangle"}]}'}]}
 
-    monkeypatch.setattr(a, "json", response)
+    from types import SimpleNamespace
+
+    def sdk_response(arguments):
+        calls.append(("/messages", {"json": arguments}))
+        return SimpleNamespace(
+            stop_reason="end_turn",
+            content=[
+                SimpleNamespace(type="text", text='{"operations":[{"type":"shape","shape":"triangle"}]}')
+            ],
+        )
+
+    monkeypatch.setattr(a, "call", sdk_response)
     p = Project(16, 16)
     p.apply({"type": "guidance", "name": "logo", "style": "logo"})
     assert not plan(p, "make a mark", a)["applied"]
     body = calls[-1][1]["json"]
-    assert body["messages"][0]["content"][1]["type"] == "image"
-    assert "design_guidance" in body["messages"][0]["content"][0]["text"]
+    assert body["messages"][0]["content"][0]["type"] == "image"
+    assert "design_guidance" in body["messages"][0]["content"][1]["text"]
     g = make_provider(
         "g",
         {
@@ -388,7 +399,7 @@ def test_native_adapter_planning_and_gemini_image(monkeypatch):
 
 def test_discovery_pagination_and_failed_onboarding_preserves_config(monkeypatch):
     monkeypatch.setenv("TEST_KEY", "secret")
-    a = make_provider("a", {"type": "anthropic", "url": "https://example.test/v1", "key_env": "TEST_KEY"})
+    a = catalog_provider("a", {"type": "anthropic", "url": "https://example.test/v1", "key_env": "TEST_KEY"})
     calls = []
 
     def page(method, route, **kw):
@@ -424,3 +435,25 @@ def test_every_discovered_cli_command_has_document_independent_help(tmp_path, mo
             assert exc.code == 0, command
         capsys.readouterr()
     assert not list(tmp_path.glob("*.vixl"))
+
+
+def test_template_expansion_counts_toward_operation_budget():
+    from vixl.model import Limits
+
+    register(
+        "templates",
+        "bounded",
+        {
+            "width": 8,
+            "height": 8,
+            "operations": [
+                {"type": "variable", "name": "a", "value": 1},
+                {"type": "variable", "name": "b", "value": 2},
+                {"type": "variable", "name": "c", "value": 3},
+            ],
+        },
+    )
+    p = Project(8, 8, limits=Limits(max_operations=2))
+    with pytest.raises(VixlError, match="operation limit"):
+        p.apply({"type": "template-apply", "name": "bounded"})
+    assert not p.state["variables"]

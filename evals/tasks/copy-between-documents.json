@@ -1,0 +1,18 @@
+{
+  "prompt": "Open a.vixl and b.vixl. Replace the text of the layer named placeholder in b.vixl with the exact text of the layer named headline in a.vixl. Do not modify a.vixl.",
+  "document": "b.vixl",
+  "setup": {"documents": [
+    {"path": "a.vixl", "width": 600, "height": 300, "background": "white", "batches": [[{"type": "text", "name": "headline", "text": "Northern Lights Tour", "size": 40, "x": 20, "y": 20, "color": "black"}]]},
+    {"path": "b.vixl", "width": 600, "height": 300, "background": "white", "batches": [[{"type": "text", "name": "placeholder", "text": "HEADLINE HERE", "size": 40, "x": 20, "y": 120, "color": "black"}]]}
+  ]},
+  "checks": [
+    {"type": "layer", "name": "text copied", "match": {"name": "placeholder", "text": "Northern Lights Tour"}},
+    {"type": "layer", "name": "source unchanged", "document": "a.vixl", "match": {"name": "headline", "text": "Northern Lights Tour"}}
+  ],
+  "reference": [
+    {"tool": "vixl_document_open", "arguments": {"path": "a.vixl"}},
+    {"tool": "vixl_document_inspect", "arguments": {"target": "headline"}},
+    {"tool": "vixl_document_open", "arguments": {"path": "b.vixl"}},
+    {"tool": "vixl_operations_apply", "arguments": {"document": "b.vixl", "operations": [{"type": "text-set", "target": "placeholder", "text": "Northern Lights Tour"}]}}
+  ]
+}

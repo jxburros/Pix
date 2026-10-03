@@ -168,7 +168,7 @@ def validate(kind, value):
         ops = value.get("operations")
         require(isinstance(ops, list) and 0 < len(ops) <= 1000, "Template needs 1–1000 operations")
         for op in ops:
-            validate_operation(op)
+            validate_operation(substitute(op, value.get("defaults", {})))
             require(
                 op["type"] not in ("template-apply", "font-register")
                 and not any(k in op for k in ("font", "linked"))
@@ -247,8 +247,17 @@ def execute_resource(project, op):
 
         item = get("templates", name)
         values = {**item.get("defaults", {}), **op.get("variables", {})}
-        for operation in substitute(item["operations"], values):
-            execute(project, validate_operation(operation))
+        expanded = substitute(item["operations"], values)
+        remaining = getattr(project, "_resource_budget", project.limits.max_operations) - len(expanded) + 1
+        require(remaining >= 0, "Expanded templates exceed the operation limit", "resource_limit")
+        project._resource_budget = remaining
+        from .normalize import resolve_geometry, apply_centering
+
+        for operation in expanded:
+            operation = validate_operation(operation)
+            resolved, centered = resolve_geometry(project, operation)
+            execute(project, resolved)
+            apply_centering(project, centered, operation)
 
 
 def create_template(name, variables=None, *, limits=None):

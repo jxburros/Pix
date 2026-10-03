@@ -465,7 +465,7 @@ def test_mcp_design_schema_measurement_and_typed_tools(tmp_path):
     p.save(tmp_path / "p.vixl")
     session = Session(tmp_path / "p.vixl")
     result = session.apply([{"type": "swatch", "name": "brand", "color": "red"}])
-    assert result["changes"]["swatches"]["after"] == {"brand": "red"}
+    assert result["changes"]["swatches"] == {"brand": "red"}
     assert Image.open(io.BytesIO(preview(session, artboard="wide"))).size == (60, 30)
 
     async def run():

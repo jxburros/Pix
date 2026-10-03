@@ -35,7 +35,8 @@ Design:    shape, group, ungroup, clip, layer-style, distribute, style-define,
            pathfinder, symbol, symbol-instance
 Measure:   info, sample X Y, histogram [--region X Y W H], info --target TEXT,
            spacing --targets A B C --axis vertical [--expected N] [--tolerance N] [--check],
-           spacing --around BODY --before HEADER --after FOOTER
+           spacing --around BODY --before HEADER --after FOOTER,
+           check [--safe-area 5%] [--avoid X Y W H] [--thumbnail-width 320] [--strict]
 Pixels:    pixel-art, pixel-draw, pixel-palette, pixels [LAYER],
            frame-save NAME [--duration MS], frame-apply NAME, frame-delete NAME,
            animation, animation-set --loop N --order FRAME FRAME,
@@ -62,7 +63,7 @@ AI:        ask PROMPT [--apply], generate --prompt TEXT --provider NAME,
            detect objects|faces, ocr, ai describe|info|regenerate|background-remove|upscale|extend,
            select object LABEL --provider NAME, ai remove|content-aware-fill|select-subject
 Updates:   update [--check | --rollback], updates [on | off | status]
-Services:  serve [--host 127.0.0.1] [--port 8765], mcp [--workspace DIR]
+Services:  serve [--host 127.0.0.1] [--port 8765], mcp [--workspace DIR] [--schema slim] [--planner]
 
 Options: --project/-p FILE, --json, --allow-linked, --plugins, --max-pixels N, --detail compact|full, --version
 Use vixl commands --json for a complete inventory; vixl COMMAND --help works without a document. See docs/commands.md.
@@ -182,7 +183,7 @@ def dispatch(argv):
                     | set(EFFECTS)
                     | {"filter"}
                     | set(
-                        "new open save status inspect describe layers effects manifest dependencies reproduce schema batch convert render export export-screens export-animation spacing pixels animation info sample histogram apply run each undo redo checkpoint branch checkout branches history transaction compare assert validate preset ai ask generate detect ocr serve mcp update updates commands shapes palette template guidance font providers models".split()
+                        "new open save status inspect describe layers effects manifest dependencies reproduce schema check batch convert render export export-screens export-animation spacing pixels animation info sample histogram apply run each undo redo checkpoint branch checkout branches history transaction compare assert validate preset ai ask generate detect ocr serve mcp update updates commands shapes palette template guidance font providers models".split()
                     )
                 )
             }
@@ -290,10 +291,17 @@ def dispatch(argv):
 
         p = Parser(prog="vixl mcp")
         p.add_argument("--workspace", help="Directory containing documents, imports and exports")
+        p.add_argument(
+            "--schema",
+            choices=["full", "slim"],
+            default=os.environ.get("VIXL_MCP_SCHEMA", "full"),
+            help="slim advertises operation names only; fields come from vixl_operation_schema",
+        )
+        p.add_argument("--planner", action="store_true", help="Expose the provider-backed vixl_ai_plan tool")
         a = p.parse_args(args)
         # Explicit workspaces can start empty. Existing --project configurations still work.
         path = current_path(options.project) if options.project or not a.workspace else None
-        mcp_server(path, limits, workspace=a.workspace).run()
+        mcp_server(path, limits, workspace=a.workspace, schema=a.schema, planner=a.planner).run()
         return None, options.json
     if "--help" in args or "-h" in args:
         return command_help(cmd, args), options.json
@@ -449,6 +457,35 @@ def project_command(project, cmd, args, *, detail="compact"):
         if check and not result["passed"]:
             raise VixlError("spacing_mismatch", "Requested spacing is inconsistent", measurement=result)
         return result, False
+    if cmd == "check":
+        p = Parser(prog="vixl check")
+        p.add_argument(
+            "--checks", nargs="+", choices=["bounds", "overlap", "contrast", "safe_area", "legibility"]
+        )
+        p.add_argument("--targets", nargs="+")
+        p.add_argument("--safe-area", help="Inset from every edge: pixels or a percentage such as 5%%")
+        p.add_argument(
+            "--avoid", nargs=4, action="append", metavar=("X", "Y", "W", "H"), help="Reserved zone"
+        )
+        p.add_argument("--thumbnail-width", type=int, default=320)
+        p.add_argument("--min-thumbnail-text", type=float, default=10)
+        p.add_argument("--min-contrast", type=float)
+        for key in ("artboard", "comp"):
+            p.add_argument("--" + key)
+        p.add_argument("--strict", action="store_true", help="Exit with an error when any check fails")
+        options = vars(p.parse_args(args))
+        strict = options.pop("strict")
+
+        def number(value):
+            return value if value.endswith("%") else float(value)
+
+        if options["safe_area"] is not None:
+            options["safe_area"] = number(options["safe_area"])
+        options["avoid"] = [[number(v) for v in zone] for zone in options["avoid"] or []]
+        result = project.check(**options)
+        if strict and not result["passed"]:
+            raise VixlError("design_check_failed", f"{result['errors']} design error(s)", report=result)
+        return result, False
     if cmd == "pixels":
         require(len(args) <= 1, "Use pixels [LAYER]")
         return project.inspect_pixels(args[0] if args else None), False
@@ -534,7 +571,9 @@ def project_command(project, cmd, args, *, detail="compact"):
             "current": project.current_branch,
         }, False
     if cmd == "history":
-        return [{k: v for k, v in node.items() if k != "state"} for node in project.nodes.values()], False
+        return [
+            {k: v for k, v in node.items() if k not in ("state", "delta")} for node in project.nodes.values()
+        ], False
     if cmd == "transaction":
         require(
             len(args) == 1 and args[0] in ("begin", "commit", "rollback"),

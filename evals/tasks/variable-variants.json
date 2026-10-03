@@ -1,0 +1,20 @@
+{
+  "prompt": "Create banner.vixl at 1200x628 with a white background. Set a document variable named city to 'Paris' and add a large dark text layer named headline whose text is 'Hello, ${city}!' so it follows the variable. Export banner-paris.png with the stored value, and banner-tokyo.png with city set to Tokyo only for that export (the stored variable must stay Paris).",
+  "document": "banner.vixl",
+  "checks": [
+    {"type": "layer", "name": "templated headline", "match": {"type": "text", "name": "headline", "text_contains": "${city}"}},
+    {"type": "variable", "name": "stored value kept", "variable": "city", "equals": "Paris"},
+    {"type": "file", "path": "banner-paris.png", "image_size": [1200, 628]},
+    {"type": "file", "path": "banner-tokyo.png", "image_size": [1200, 628]},
+    {"type": "files_differ", "name": "variants differ", "paths": ["banner-paris.png", "banner-tokyo.png"]}
+  ],
+  "reference": [
+    {"tool": "vixl_document_create", "arguments": {"path": "banner.vixl", "width": 1200, "height": 628, "background": "white"}},
+    {"tool": "vixl_operations_apply", "arguments": {"operations": [
+      {"type": "variable", "name": "city", "value": "Paris"},
+      {"type": "text", "name": "headline", "text": "Hello, ${city}!", "size": 96, "color": "#1d1d1f", "x": "center", "y": "center"}
+    ]}},
+    {"tool": "vixl_export_file", "arguments": {"path": "banner-paris.png"}},
+    {"tool": "vixl_export_file", "arguments": {"path": "banner-tokyo.png", "variables": {"city": "Tokyo"}}}
+  ]
+}

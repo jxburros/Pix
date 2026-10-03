@@ -1,6 +1,8 @@
 """Discoverable JSON Schema for the public structured operation format."""
 
 from copy import deepcopy
+from functools import lru_cache
+
 from .render import EFFECTS, BLENDS
 
 S = {"type": "string"}
@@ -8,6 +10,15 @@ N = {"type": "number"}
 POSITIVE_INT = {"type": "integer", "minimum": 1}
 B = {"type": "boolean"}
 TARGET = {"type": "string", "description": "Stable layer ID or unique name; omitted means active layer."}
+COORD = {
+    "anyOf": [N, {"type": "string", "pattern": r"^(center|-?\d+(\.\d+)?%)$"}],
+    "description": "Pixels, 'center', or a percentage of the canvas/parent such as '50%'.",
+}
+SIZE = {
+    "anyOf": [POSITIVE_INT, {"type": "string", "pattern": r"^\d+(\.\d+)?%$"}],
+    "description": "Pixels or a percentage of the canvas/parent such as '25%'.",
+}
+COORD_FIELDS = ("x", "y", "width", "height")
 
 
 def enum(*values):
@@ -15,6 +26,19 @@ def enum(*values):
 
 
 def operation_schema():
+    return deepcopy(_operation_schema())
+
+
+@lru_cache(maxsize=1)
+def _validators():
+    from jsonschema import Draft202012Validator
+
+    variants = _operation_schema()["properties"]["operations"]["items"]["oneOf"]
+    return {s["properties"]["type"]["const"]: Draft202012Validator(s) for s in variants}
+
+
+@lru_cache(maxsize=1)
+def _operation_schema():
     variants = []
 
     def add(kind, properties=None, required=(), **extra):
@@ -30,23 +54,31 @@ def operation_schema():
 
     add(
         "add",
-        {"path": S, "asset": S, "name": S, "linked": B, "x": N, "y": N, "provenance": {"type": "object"}},
+        {
+            "path": S,
+            "asset": S,
+            "name": S,
+            "linked": B,
+            "x": COORD,
+            "y": COORD,
+            "provenance": {"type": "object"},
+        },
         anyOf=[{"required": ["path"]}, {"required": ["asset"]}],
     )
-    add("solid", {"name": S, "width": POSITIVE_INT, "height": POSITIVE_INT, "color": S, "x": N, "y": N})
+    add("solid", {"name": S, "width": SIZE, "height": SIZE, "color": S, "x": COORD, "y": COORD})
     add(
         "gradient",
         {
             "name": S,
-            "width": POSITIVE_INT,
-            "height": POSITIVE_INT,
+            "width": SIZE,
+            "height": SIZE,
             "start": S,
             "end": S,
             "direction": enum("horizontal", "vertical", "radial", "angled"),
             "stops": {"type": "array", "items": {"type": "object"}},
             "angle": N,
-            "x": N,
-            "y": N,
+            "x": COORD,
+            "y": COORD,
         },
     )
     add("palette-apply", {"name": S, "prefix": S}, ["name"])
@@ -66,8 +98,8 @@ def operation_schema():
             **text,
             "name": S,
             "font": S,
-            "x": {"type": ["string", "number"]},
-            "y": {"type": ["string", "number"]},
+            "x": COORD,
+            "y": COORD,
         },
         ["text"],
     )
@@ -87,10 +119,10 @@ def operation_schema():
         add(kind)
     add("rename", {"name": S}, ["name"])
     add("duplicate", {"name": S})
-    add("move", {"x": N, "y": N, "relative": B}, anyOf=[{"required": ["x"]}, {"required": ["y"]}])
+    add("move", {"x": COORD, "y": COORD, "relative": B}, anyOf=[{"required": ["x"]}, {"required": ["y"]}])
     add(
         "resize",
-        {"width": POSITIVE_INT, "height": POSITIVE_INT},
+        {"width": SIZE, "height": SIZE},
         anyOf=[{"required": ["width"]}, {"required": ["height"]}],
     )
     add("scale", {"value": {"type": "number", "exclusiveMinimum": 0}}, ["value"])
@@ -147,10 +179,10 @@ def operation_schema():
         "select",
         {
             "shape": enum("all", "none", "invert", "rect", "ellipse", "color", "alpha", "asset"),
-            "x": N,
-            "y": N,
-            "width": POSITIVE_INT,
-            "height": POSITIVE_INT,
+            "x": COORD,
+            "y": COORD,
+            "width": SIZE,
+            "height": SIZE,
             "color": S,
             "tolerance": N,
             "feather": N,
@@ -214,28 +246,101 @@ def operation_schema():
     }
 
 
-def validate_operation(operation):
-    """Validate before doing any I/O; return canonical names for legacy aliases."""
+@lru_cache(maxsize=1)
+def _properties():
+    variants = _operation_schema()["properties"]["operations"]["items"]["oneOf"]
+    return {v["properties"]["type"]["const"]: frozenset(v["properties"]) for v in variants}
+
+
+def validate_operation(operation, notes=None, index=None):
+    """Normalize common spellings, then validate before doing any I/O."""
     import json
-    from jsonschema import Draft202012Validator
-    from .operations import ALIASES
     from .errors import VixlError, require
+    from .normalize import normalize_operation
+    from .operations import ALIASES
 
     require(isinstance(operation, dict), "Each operation must be an object")
     result = deepcopy(operation)
     kind = result.pop("operation", result.get("type"))
     result["type"] = ALIASES.get(kind, kind) if isinstance(kind, str) else kind
-    if "layer" in result:
-        result["target"] = result.pop("layer")
-    require(isinstance(result["type"], str), "Operation requires a string type")
-    variants = operation_schema()["properties"]["operations"]["items"]["oneOf"]
-    schema = next((s for s in variants if s["properties"]["type"]["const"] == result["type"]), None)
-    require(schema is not None, f"Unknown operation: {result['type']}", "unknown_operation")
-    error = next(Draft202012Validator(schema).iter_errors(result), None)
-    if error:
-        raise VixlError("invalid_operation", error.message, field=".".join(map(str, error.path)))
+    properties = _properties()
+    result = normalize_operation(
+        result, lambda k: properties.get(k, frozenset()), properties, EFFECTS, [] if notes is None else notes, index
+    )
+    require(isinstance(result.get("type"), str), "Operation requires a string type", field="type")
+    validator = _validators().get(result["type"])
+    if validator is None:
+        import difflib
+
+        close = difflib.get_close_matches(result["type"], list(properties), 3, 0.5)
+        raise VixlError(
+            "unknown_operation",
+            f"Unknown operation type {result['type']!r}"
+            + (f"; did you mean {' or '.join(map(repr, close))}?" if close else "; see the operation schema"),
+            field="type",
+            suggestions=close,
+        )
+    from jsonschema.exceptions import best_match
+
+    error = best_match(validator.iter_errors(result))
+    if error is not None:
+        raise schema_error(error, result, properties[result["type"]])
     try:
         json.dumps(result, allow_nan=False)
     except (ValueError, TypeError, RecursionError) as exc:
         raise VixlError("invalid_operation", "Operations must contain finite JSON values") from exc
     return result
+
+
+def schema_error(error, operation, allowed):
+    """Turn a JSON Schema failure into a message an agent can act on in one retry."""
+    import difflib
+    from .errors import VixlError
+
+    kind = operation["type"]
+    path = [str(part) for part in error.absolute_path]
+    field = ".".join(path) or None
+    allowed = sorted(k for k in allowed if k != "type")
+    details = {"field": field}
+    validator = error.validator
+    if validator == "additionalProperties":
+        known = set(error.schema.get("properties", {}))
+        extras = sorted(set(error.instance) - known)
+        suggestions = {k: difflib.get_close_matches(k, sorted(known), 1, 0.5) for k in extras}
+        hints = [f"{v[0]!r} instead of {k!r}" for k, v in suggestions.items() if v]
+        where = f" in {field}" if field else f" for {kind!r}"
+        message = f"Unknown field(s) {', '.join(map(repr, extras))}{where}. Allowed: {', '.join(sorted(known))}"
+        if hints:
+            message += f". Did you mean {', '.join(hints)}?"
+        details.update(field=field or extras[0], allowed=sorted(known), suggestions={k: v[0] for k, v in suggestions.items() if v})
+    elif validator == "enum":
+        options = error.validator_value
+        close = difflib.get_close_matches(str(error.instance), [str(o) for o in options], 1, 0.4)
+        message = f"{field} must be one of {', '.join(map(repr, options))}; got {error.instance!r}"
+        if close:
+            message += f". Did you mean {close[0]!r}?"
+        details.update(allowed=options, suggestions=close)
+    elif validator == "required":
+        missing = error.message.split("'")[1] if "'" in error.message else error.message
+        message = f"{kind!r} is missing required field {missing!r}. Allowed fields: {', '.join(allowed)}"
+        details.update(field=missing, allowed=allowed)
+    elif validator in ("anyOf", "oneOf") and all(
+        set(option) == {"required"} for option in error.validator_value
+    ):
+        options = [" + ".join(o["required"]) for o in error.validator_value]
+        quantifier = "exactly one of" if validator == "oneOf" else "at least one of"
+        message = f"{kind!r} requires {quantifier}: {', '.join(options)}"
+        details.update(allowed=options)
+    elif path and path[-1] in COORD_FIELDS and (
+        validator == "anyOf" or (error.parent is not None and error.parent.validator == "anyOf")
+    ):
+        kind_of = "a positive integer" if path[-1] in ("width", "height") else "a number, 'center'"
+        message = f"{field} must be {kind_of} or a percentage like '50%'; got {error.instance!r}"
+    elif validator == "type":
+        message = f"{field} must be {error.validator_value}; got {type(error.instance).__name__} {error.instance!r}"
+    elif validator in ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"):
+        message = f"{field} {error.message}"
+        details["limit"] = error.validator_value
+    else:
+        message = f"{field + ': ' if field else ''}{error.message}"
+    return VixlError("invalid_operation", message, **details)

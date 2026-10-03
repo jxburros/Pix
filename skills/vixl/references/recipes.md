@@ -24,8 +24,9 @@ Then retarget sizes without re-layout: `{"type":"canvas","preset":"story"}` (con
 keep one document with `artboard` ops (`{"type":"artboard","name":"story","preset":"story"}`) and
 export each via `artboard=` / `vixl export-screens`.
 
-QA: `vixl_measure(target="title")` → check `contrast.wcag_aa_normal` / `wcag_aa_large`;
-`vixl_validate(profile="instagram-post")`.
+QA: `vixl_check(safe_area="5%")` (overlap, contrast, cut-off content, thumbnail legibility; for
+YouTube add `avoid=[["85%","85%","15%","15%"]]` for the timestamp), then
+`vixl_validate(profile="instagram-post")`. `vixl_measure(target="title")` gives the exact contrast.
 
 ## Photo cleanup (non-destructive)
 
@@ -87,8 +88,8 @@ Or with a provider: `vixl_ai_remove_background(layer="product")`.
 Variants: `vixl_render_preview(variables={"headline":"Winter Sale"})`,
 `vixl_export_file(path="winter.png", variables={...})`, or CSV in the CLI:
 `vixl render --data rows.csv --out campaign` (headers = variable names; image columns may hold asset
-IDs or file paths relative to the CSV). Get embedded asset IDs from `vixl_document_inspect` /
-`vixl manifest`.
+IDs or file paths relative to the CSV). Get embedded asset IDs from
+`vixl_document_inspect(detail="full")` / `vixl manifest`.
 
 ## Evenly spaced row of cards
 
@@ -147,7 +148,8 @@ vixl_history(action="checkout", ref="base")
 … other edits …               → vixl_history(action="branch", ref="cool")
 ```
 
-CLI: `vixl compare warm cool --out compare.png` renders both side by side. Use a transaction
+MCP: `vixl_render_compare(before="warm", after="cool")` returns both side by side (or
+`mode="diff"` to highlight changes). CLI: `vixl compare warm cool --out compare.png`. Use a transaction
 (`begin` … `commit`/`rollback`) when a multi-call change should be a single undo step.
 
 ## Brand system

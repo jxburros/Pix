@@ -113,7 +113,16 @@ def test_presets_and_variable_delete_via_cli(tmp_path):
 def test_script_failure_does_not_save_earlier_operations(tmp_path):
     ok(tmp_path, "new", "20x20")
     ok(tmp_path, "solid", "--name", "base")
-    (tmp_path / "bad.vixlscript").write_text("move 4 5\nopacity 200\n")
+    (tmp_path / "bad.vixlscript").write_text("move 4 5\nopacity 250\n")
     before = (tmp_path / "untitled.vixl").read_bytes()
     assert cli(tmp_path, "run", "bad.vixlscript").returncode == 1
     assert (tmp_path / "untitled.vixl").read_bytes() == before
+
+
+def test_check_command_reports_and_strict_mode_fails(tmp_path):
+    ok(tmp_path, "new", "400x200", "--background", "white", "-o", "card.vixl")
+    ok(tmp_path, "text", "add", "Faint", "--name", "faint", "--size", "20", "--color", "#f4f4f4", "--x", "10", "--y", "10")
+    report = ok(tmp_path, "--json", "check", "--safe-area", "10%", "--avoid", "80%", "0", "20%", "20%")
+    assert {issue["check"] for issue in report["issues"]} == {"contrast", "safe_area"}
+    strict = cli(tmp_path, "--json", "check", "--checks", "contrast", "--strict")
+    assert strict.returncode != 0 and json.loads(strict.stderr)["error"] == "design_check_failed"

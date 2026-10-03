@@ -14,7 +14,7 @@ vixl template list
 vixl guidance list
 ```
 
-These commands work without an open document. CLI edits return compact changes keyed by stable layer ID by default. Use `--detail full` for before/after snapshots. Prefer atomic `apply` batches, Python, or a persistent MCP/REST session for repeated edits; services reuse the loaded document between requests.
+These commands work without an open document. CLI edits return compact new values keyed by stable layer ID by default. Use `--detail full` for before/after snapshots. Prefer atomic `apply` batches, Python, or a persistent MCP/REST session for repeated edits; services reuse the loaded document between requests.
 
 ## Palettes
 
@@ -69,7 +69,7 @@ vixl guidance import campaign campaign-guide.txt --style campaign
 vixl guidance remove campaign --style campaign
 ```
 
-`add` stores plain text in the reusable library; `import` attaches file text directly to the document. Guidance is retained in `design_guidance`, survives save/open and undo, and is included in `ask` planning requests alongside the operation schema and current preview. It guides the external planner; deterministic drawing commands do not infer or enforce aesthetic rules. Imported guidance and image text are treated as data, and returned plans still pass Vixl's safety and operation validation.
+`add` stores plain text in the reusable library; `import` attaches file text directly to the document. Guidance is retained in `design_guidance`, survives save/open and participates in undo, and is included in `ask` planning requests alongside the operation schema and current preview. It guides the external planner; deterministic drawing commands do not infer or enforce aesthetic rules. Imported guidance and image text are treated as data, and returned plans still pass Vixl's safety and operation validation.
 
 ## Fonts
 

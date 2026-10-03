@@ -57,13 +57,37 @@ EXPORT_PROFILES = {
 }
 
 
+CSS_RGB = re.compile(
+    r"rgba?\(\s*(\d+(?:\.\d+)?%?)[\s,]+(\d+(?:\.\d+)?%?)[\s,]+(\d+(?:\.\d+)?%?)"
+    r"(?:\s*[,/]\s*(\d*(?:\.\d+)?%?))?\s*\)"
+)
+
+
+def _css_channel(text, alpha=False):
+    if text.endswith("%"):
+        return round(float(text[:-1]) * 2.55)
+    value = float(text)
+    return round(value * 255) if alpha and value <= 1 else round(value)
+
+
 def color(value):
     if value == "transparent":
         return (0, 0, 0, 0)
+    if isinstance(value, str):
+        # CSS rgb()/rgba() with spaces or a 0–1 alpha, which models write constantly.
+        match = CSS_RGB.fullmatch(value.strip().lower())
+        if match:
+            r, g, b = (min(255, _css_channel(match[i])) for i in (1, 2, 3))
+            a = min(255, _css_channel(match[4], alpha=True)) if match[4] else 255
+            return (r, g, b, a)
     try:
         return ImageColor.getcolor(value, "RGBA")
     except (ValueError, TypeError) as exc:
-        raise VixlError("invalid_color", f"Invalid color: {value}") from exc
+        raise VixlError(
+            "invalid_color",
+            f"Invalid color {value!r}; use a CSS name, #rrggbb[aa], rgb()/rgba() or hsl()",
+            requested=value,
+        ) from exc
 
 
 def substitute(value, variables):
@@ -376,7 +400,8 @@ def layer_image(project, layer, bounds):
                 source = (project.path.parent if project.path else Path.cwd()) / source
             image = decode(read_bounded(source, project.limits.max_asset_bytes), project.limits)
         else:
-            image = project.image(layer["asset"])
+            hint = None if layer.get("crop") else (layer["width"], layer["height"])
+            image = project.image(layer["asset"], size_hint=hint)
         if layer.get("crop"):
             image = image.crop(tuple(layer["crop"]))
     elif kind == "text":
@@ -510,8 +535,30 @@ def render_layers(project, parent=None, size=None, background="transparent"):
         visiting.remove(ident)
         return tile
 
+    def direct(layer):
+        """Composite a plain layer only over its own bounds instead of a full-canvas tile."""
+        b = bounds[layer["id"]]
+        left, top = max(0, b[0]), max(0, b[1])
+        right, bottom = min(size[0], b[0] + b[2]), min(size[1], b[1] + b[3])
+        if left >= right or top >= bottom:
+            return image
+        source = layer_image(project, {**layer, "opacity": 1}, b)
+        if (left, top, right, bottom) != (b[0], b[1], b[0] + b[2], b[1] + b[3]):
+            source = source.crop((left - b[0], top - b[1], right - b[0], bottom - b[1]))
+        if layer["opacity"] != 1:
+            source.putalpha(source.getchannel("A").point(lambda a: round(a * layer["opacity"])))
+        if layer["blend"] == "normal":
+            image.alpha_composite(source, (left, top))
+        else:
+            box = (left, top, right, bottom)
+            image.paste(composite(image.crop(box), source, layer["blend"]), box[:2])
+        return image
+
     for layer in layers:
         if layer.get("parent") != parent or not layer["visible"]:
+            continue
+        if not layer.get("styles") and not layer.get("clip") and layer["type"] != "adjustment":
+            image = direct(layer)
             continue
         if layer["type"] == "adjustment":
             changed = image

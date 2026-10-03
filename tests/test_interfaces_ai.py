@@ -65,7 +65,7 @@ def test_rest_rebinding_body_limit_and_atomic_failure(project_path):
     assert client.post("/operations", content=b"x" * (1024 * 1024 + 1)).status_code == 413
     before = project_path.read_bytes()
     result = client.post(
-        "/operations", json={"operations": [{"type": "move", "x": 10}, {"type": "opacity", "value": 5}]}
+        "/operations", json={"operations": [{"type": "move", "x": 10}, {"type": "opacity", "value": 500}]}
     )
     assert result.status_code == 400 and project_path.read_bytes() == before
 

@@ -187,7 +187,7 @@ vixl export - --format PNG > preview.png
 
 ## AI and agent interfaces
 
-AI features require a configured external provider; Vixl does not ship model weights or simulate AI results. Built-in adapters support OpenAI, Anthropic, Mistral, Meta Llama, Gemini, ComfyUI API workflows, Automatic1111, and a documented HTTP gateway. Authenticated model discovery and capability routing select available models for the requested task. Midjourney requires a configured HTTP gateway; it has no supported public model API. See [provider discovery](docs/providers.md).
+AI features require a configured external provider; Vixl does not ship model weights or simulate AI results. Built-in adapters support OpenAI, Anthropic, Mistral, Meta Llama, Gemini, Black Forest Labs FLUX, ComfyUI API workflows, Automatic1111, and a documented HTTP gateway. Authenticated model discovery and capability routing select available models for the requested task. Midjourney requires a configured HTTP gateway; it has no supported public model API. See [provider discovery](docs/providers.md).
 
 ```bash
 vixl ask 'Make the logo 20% smaller and align it top-right with a 40px margin'
@@ -207,7 +207,16 @@ vixl --project poster.vixl serve  # local REST API, http://127.0.0.1:8765/docs
 vixl mcp --workspace .          # MCP over stdio; create/open documents with tools
 ```
 
-MCP can create/open documents, import images by local path, and export files within its configured workspace. It advertises operation schemas directly, returns compact edit summaries, and bounds previews to 1024 pixels and 1 MiB by default. REST stays scoped to one project. See [interface setup](docs/interfaces.md), including MCP client configuration and authenticated REST access.
+For agents, MCP offers:
+
+- **A safe workspace**: create/open several documents, import images by path or base64, export files; no code execution and no access outside the workspace.
+- **Forgiving input**: common spellings (`rect`, `font_size`, `opacity: 50`, `"50%"`, `"center"`, CSS `rgba()`) are normalized and reported.
+- **Actionable errors**: JSON with the failing operation index, field, allowed values and suggestions.
+- **Self-checks**: `vixl_check` finds cut-off content, overlapping text, low contrast, safe-area violations and text too small at thumbnail size; previews render fast at preview resolution and can zoom; `vixl_render_compare` shows what changed between revisions.
+- **Small responses**: minified JSON, compact diffs and an optional slim schema (`vixl mcp --schema slim`).
+- **Long sessions**: delta history keeps every edit fast and old revisions are squashed instead of blocking edits.
+
+The [agent eval suite](evals/README.md) measures how well a model completes real design briefs with these tools. REST stays scoped to one project. See [interface setup](docs/interfaces.md), including MCP client configuration and authenticated REST access.
 
 ### Agent skill
 
@@ -246,5 +255,6 @@ python -m pip wheel . --no-deps --wheel-dir dist
 - [REST, MCP, and plugins](docs/interfaces.md)
 - [Architecture, security, and limits](docs/architecture.md)
 - [Specification coverage and known limitations](docs/coverage.md)
+- [Agent evaluation suite](evals/README.md)
 
 Vixl processes raster images in RGBA8 and retains procedural shapes and supported Bézier paths. SVG exports native simple geometry and embeds raster appearances for other layers; PNG preserves transparency and JPG flattens it against a chosen background. CMYK, RAW development, arbitrary SVG import, brushes, full animation timelines, desktop GUI/TUI, and GIMP/Photoshop project compatibility are outside this implementation. AI adapter contracts are tested offline; live providers require your own service, model, workflow, and credentials.

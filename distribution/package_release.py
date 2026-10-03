@@ -13,7 +13,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--checksums", action="store_true")
 args = parser.parse_args()
 root = Path(__file__).resolve().parent.parent
-assert tomllib.loads((root / "pyproject.toml").read_text())["project"]["version"] == __version__
+# The package version is single-sourced from vixl.__version__ (hatch dynamic version).
+assert "version" in tomllib.loads((root / "pyproject.toml").read_text())["project"]["dynamic"]
 output = root / "dist" / "release"
 output.mkdir(parents=True, exist_ok=True)
 if args.checksums:

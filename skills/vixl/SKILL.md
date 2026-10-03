@@ -51,20 +51,27 @@ Set `VIXL_NO_UPDATE=1` in automation so the Windows auto-updater never runs mid-
 
 ## 2. The core loop (do this every time)
 
-1. **Orient** — inspect before editing. MCP: `vixl_document_inspect()` (or `target=` for one
-   layer). CLI: `vixl -p F.vixl inspect --json` / `vixl layers`. Note canvas size, layer names/IDs,
-   `resolved_bounds` (`[x, y, width, height]` after constraints).
+1. **Orient** — inspect before editing. MCP: `vixl_document_inspect()` returns a compact summary
+   (one line per layer with `bounds`; `detail="full"` for every field, `target=` for one layer).
+   CLI: `vixl -p F.vixl inspect --json` / `vixl layers`. Note canvas size, layer names/IDs and
+   bounds (`[x, y, width, height]` after constraints).
 2. **Plan a batch** of canonical operations. Group related edits into one atomic call.
 3. **Dry-run anything risky** (`dry_run: true` / `vixl apply ops.json --dry-run`). It returns the
-   exact before/after diff without saving.
-4. **Apply.** Read the returned change summary — it gives new layer IDs and resolved bounds.
-5. **Look at the result.** MCP: `vixl_render_preview()` returns an image (≤1024 px, ≤1 MiB by
-   default). CLI: `vixl render --out /tmp/preview.png` then view the file. Never declare a visual
+   changes without saving.
+4. **Apply.** Read the returned change summary — new layers come back with ID, name, type and
+   `bounds`; changed layers list only their new values. If it contains `normalized`, note the
+   canonical spelling it reports and use that next time.
+5. **Check without looking:** `vixl_check` / `vixl check` reports content cut off by the canvas,
+   overlapping text, low WCAG contrast, safe-area or reserved-zone violations (`safe_area="5%"`,
+   `avoid=[[x,y,w,h]]`) and text too small at thumbnail width. It lists only problems.
+6. **Look at the result.** MCP: `vixl_render_preview()` returns an image (≤1024 px, ≤1 MiB by
+   default; `region=[x,y,w,h]` zooms in). `vixl_render_compare()` shows previous vs current.
+   CLI: `vixl render --out /tmp/preview.png` then view the file. Never declare a visual
    task done without looking.
-6. **Measure, don't eyeball,** when precision matters: `vixl_measure` / `vixl info` (colors,
+7. **Measure, don't eyeball,** when precision matters: `vixl_measure` / `vixl info` (colors,
    WCAG contrast of a text layer), `vixl_measure_spacing` / `vixl spacing` (gaps),
    `vixl_validate` / `vixl validate` (bounds, aspect ratios, assertions).
-7. **Fix with targeted edits or `undo`**, then **export** (`vixl_export_file` / `vixl export`).
+8. **Fix with targeted edits or `undo`**, then **export** (`vixl_export_file` / `vixl export`).
 
 ## 3. Minimal examples
 
@@ -83,8 +90,8 @@ vixl_operations_apply(operations=[
   {"type":"constrain","target":"title","constraints":{"center-x":"canvas.center-x","bottom":"canvas.bottom-120"}},
   {"type":"layer-style","target":"title","name":"drop-shadow","settings":{"blur":8,"dy":6,"opacity":0.6}}
 ])
+vixl_check(safe_area="5%")                              # overlap, contrast, bounds, legibility
 vixl_render_preview()
-vixl_measure(target="title")                            # WCAG contrast of the rendered text
 vixl_export_file(path="poster.png")
 ```
 
@@ -109,13 +116,16 @@ Or put the operations in a file and run `vixl -p poster.vixl apply ops.json` (at
   per-directory default in `.vixl-session.json`, which is fragile across concurrent work.
 - **CLI edit output is verbose** (full before/after layer snapshots). Pipe to `> /dev/null` or
   read only `success`; use `inspect LAYER` afterwards. MCP/REST default to `detail:"compact"`.
-- **Use `--json` with the CLI** so failures print `{"error": CODE, "message": …, …details}` to
-  stderr (exit code 1). `layer_not_found` includes `suggestions`.
-- **Blur: use `amount`, not `radius`, in JSON operations.** `{"type":"effect","name":"blur","amount":4}`
-  (or `{"type":"blur","amount":4}`). A `radius` field on blur is accepted but currently ignored —
-  the effect is added with strength 0. (CLI `vixl blur 4` and `vixl filter blur --radius 4` are fine.)
-  `radius` *is* correct for `vignette` (0–1.4) and shapes (`rounded-rectangle` corner radius).
-- **Opacity is 0–1 in JSON**; the CLI also accepts `75` meaning 75 %.
+- **Errors are structured.** MCP tool errors and CLI `--json` failures are
+  `{"error": CODE, "message", "field", "operation_index", "operation_type", "allowed"?, "suggestions"?}`.
+  Fix the named operation and field (try a suggestion) and retry; a failed batch changed nothing.
+- **Common spellings are accepted and reported** under `normalized`: `rect`/`circle`/`triangle`,
+  `font_size`, `fill`/`color`, camelCase keys, `drop_shadow`, CSS `rgba(…, 0.5)`, blur `radius`.
+  `x`/`y` take pixels, `"center"` or `"50%"`; `width`/`height` take pixels or `"25%"` (of the canvas,
+  or of the parent group).
+- **Blur strength is `amount`** (`{"type":"effect","name":"blur","amount":4}`); `radius` on blur is
+  read as `amount`. `radius` is its own field for `vignette` (0–1.4) and `rounded-rectangle` corners.
+- **Opacity is 0–1; values from 1 to 100 are read as a percentage** in every interface (`50` = 0.5).
 - **Scale `value` is a factor** (`0.8`); CLI accepts `80%`.
 - **Absolute `move` and `align`/`distribute` clear constraints** on that layer. Use `constrain`
   when layout should survive canvas resizes, artboards or text changes; use `align` for a one-off.
@@ -128,7 +138,10 @@ Or put the operations in a file and run `vixl -p poster.vixl apply ops.json` (at
 - **Variables:** `${name}` works in text, colors, gradient fills and image-asset IDs. Undefined
   variables are errors. Swatches are `@name` in color fields.
 - **Through MCP/REST, operation `path`, `linked` and `font` fields are rejected.** Import files with
-  `vixl_import_image` (MCP) or `POST /assets` (REST); reuse already-embedded images via `asset` IDs.
+  `vixl_import_image(path=…)` or, when you only have the bytes, `vixl_import_image(data_base64=…)`
+  (MCP) or `POST /assets` (REST); reuse already-embedded images via `asset` IDs.
+- **Several documents can be open over MCP.** Pass `document="other.vixl"` to any tool to address one
+  without changing the active document.
 - **MCP paths are relative to the server's `--workspace`**, must stay inside it, and subdirectories
   must already exist. Exports refuse to overwrite unless `overwrite: true`, and never overwrite `.vixl`.
 - **CLI `new` and `export`/`render --out` refuse existing destinations** in batch/data/animation
@@ -137,7 +150,8 @@ Or put the operations in a file and run `vixl -p poster.vixl apply ops.json` (at
 - **AI features need a configured provider** (`~/.config/vixl/providers.json`). There is no
   offline fallback; if no provider is configured, say so instead of retrying.
 - **Limits:** 40 MP per canvas/layer, 16 384 px per side, 512 layers, 256 effects/layer,
-  1 000 operations per batch, 2 000 history nodes. Animation frames ≤ 256×256, ≤ 256 frames.
+  1 000 operations per batch. History keeps 2 000 revisions; older unreferenced ones are squashed
+  automatically, so long sessions never lock. Animation frames ≤ 256×256, ≤ 256 frames.
 - **Not supported** (don't promise them): SVG/Bézier editing, brushes, skew/perspective, CMYK/ICC,
   RAW, PSD/XCF import, full animation timelines, GUI.
 
@@ -156,7 +170,7 @@ Or put the operations in a file and run `vixl -p poster.vixl apply ops.json` (at
 | Templates | `variable`, `replace-contents`, `comp-save`/`comp-apply`, CSV `render --data`, `export-screens` |
 | Pixel art & animation | `pixel-art`, `pixel-draw`, `pixel-palette`, `frame-save/apply/delete`, `animation-set`, `export-animation` |
 | History | undo/redo, checkpoint, branch, checkout, compare, transactions |
-| QA | inspect, measure (sample/histogram/contrast), spacing, validate/assert, render preview |
+| QA | check (bounds/overlap/contrast/safe area/legibility), inspect, measure (sample/histogram/contrast), spacing, validate/assert, render preview (zoomable), compare revisions |
 | AI (provider) | generate/inpaint/img2img, extend (outpaint), upscale, regenerate, background-remove, select object/subject, remove, content-aware-fill, describe/detect/OCR, natural-language plan |
 
 When unsure of a field, get the authoritative schema: MCP embeds it in `vixl_operations_apply`'s

@@ -72,7 +72,7 @@ vixl resize portrait 800x600 ; vixl resize portrait --width 800
 vixl rotate portrait 15                  # clockwise degrees
 vixl flip portrait horizontal|vertical
 vixl crop portrait 0 0 300 400           # X Y W H in the source raster
-vixl opacity portrait 0.75               # or 75
+vixl opacity portrait 0.75               # or 75 (1–100 = percent)
 vixl blend portrait multiply             # normal multiply screen overlay darken lighten difference add subtract
 vixl rasterize title
 vixl group stripes stripe1 stripe2 ; vixl ungroup stripes
@@ -161,6 +161,7 @@ vixl info --region X Y W H --foreground '#ffffff' [--background white]   # WCAG 
 vixl info --target title                             # contrast of a rendered layer vs what's beneath
 vixl spacing --targets heading body footer --axis vertical --tolerance 1 [--expected 24] [--check]
 vixl spacing --around body --before heading --after footer
+vixl check [--safe-area 5%] [--avoid X Y W H] [--thumbnail-width 320] [--checks overlap contrast] [--strict]
 vixl validate [instagram-post|instagram-square|story|youtube-thumbnail] [--rules rules.json]
 vixl assert canvas.width == 1920
 vixl assert layer.logo.exists
@@ -168,8 +169,8 @@ vixl assert layer.logo.bounds within canvas
 vixl assert text.title.font-size '>=' 48
 ```
 
-All accept `--artboard NAME` / `--comp NAME` where relevant. `--check` (spacing) and failing
-`validate`/`assert` exit nonzero with details (`--json` shows every check).
+All accept `--artboard NAME` / `--comp NAME` where relevant. `--check` (spacing), `check --strict`
+and failing `validate`/`assert` exit nonzero with details (`--json` shows every check).
 
 ## Output
 

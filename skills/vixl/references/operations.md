@@ -4,12 +4,17 @@ Vixl is headless and designed for autonomous AI agents; humans can use the same 
 
 Every edit in Vixl is a JSON object with a `type`. Send a single object, an array, or
 `{"operations": [...]}` to: MCP `vixl_operations_apply(operations=[...])`, CLI `vixl apply FILE|-`,
-REST `POST /operations`, or Python `Project.apply(...)`. Unknown fields, unknown types, malformed
-sizes and non-finite numbers are rejected. Max 1 000 operations per batch; the batch is atomic.
+REST `POST /operations`, or Python `Project.apply(...)`. Common alternative spellings (`rect`,
+`circle`, `font_size`, `fill`/`color`, camelCase keys, opacity 1–100, blur `radius`) are normalized
+and reported under `normalized`; other unknown fields, unknown types, malformed sizes and non-finite
+numbers are rejected with the operation index, field and suggestions. Max 1 000 operations per
+batch; the batch is atomic.
 
 Conventions used below: **bold** = required. `target` is a layer name or `lyr_…` ID and, when
 omitted, defaults to the active layer. Colors accept CSS names, `#rgb`, `#rrggbb`, `#rrggbbaa`,
-`transparent`, `@swatch`, and `${variable}`.
+`rgb()`/`rgba()` (alpha 0–1), `hsl()`, `transparent`, `@swatch`, and `${variable}`. Geometry: `x`/`y`
+accept pixels, `"center"` or `"N%"`; `width`/`height` accept pixels or `"N%"` (of the canvas, or of
+the parent group) on creation ops, `move`, `resize`, `select` and `text-layout`.
 
 The authoritative schema is always `vixl schema` / `GET /schema` / `vixl://operations`.
 
@@ -20,7 +25,7 @@ The authoritative schema is always `vixl schema` / `GET /schema` / `vixl://opera
 | `add` | **`path`** *or* **`asset`**, `name`, `x`, `y`, `linked` | `path` is CLI/Python only (MCP: use `vixl_import_image`). `asset` = an embedded ID like `assets/<sha256>.png`. `linked` keeps an external reference (needs `--allow-linked`). |
 | `solid` | `name`, `width`, `height`, `color`, `x`, `y` | Defaults to canvas size. |
 | `gradient` | `name`, `width`, `height`, `start`, `end`, `direction`, `stops`, `angle`, `x`, `y` | `direction`: `vertical` (default), `horizontal`, `angled` (`angle` 0°=left→right, 90°=top→bottom), `radial`. `stops`: 2–64 `{"offset":0..1,"color":…}` strictly increasing. |
-| `text` | **`text`**, `name`, `size`, `color`, `align` (`left`/`center`/`right`), `spacing` (line spacing px), `font`, `x`, `y` | `x`/`y` may be `"center"`. `font` (file path) is CLI/Python only; default font DejaVu Sans is bundled. Multiline via `\n`. |
+| `text` | **`text`**, `name`, `size`, `color`, `align` (`left`/`center`/`right`), `spacing` (line spacing px), `font`, `x`, `y` | `x`/`y` may be `"center"` or `"N%"`. `font` (file path) is CLI/Python only; default font DejaVu Sans is bundled. Multiline via `\n`. |
 | `shape` | **`shape`**, `name`, `width`, `height`, `x`, `y`, `fill`, `stroke`, `stroke_width`, `radius`, `sides`, `inner_radius` | `shape`: `rectangle`, `rounded-rectangle` (`radius`), `ellipse`, `polygon` (`sides`), `star` (`sides`, `inner_radius` 0.01–1), `line`. Procedural, redrawn crisply on resize. |
 | `frame` | `name`, `width`, `height`, `x`, `y`, `path` *or* `asset`, `fit` (`fill`/`fit`) | Image placed in a fixed box; `fill` crops, `fit` letterboxes. |
 | `pixel-art` | `name`, `width`, `height`, `x`, `y`, `palette`, `background`, **or** `rows` | Character-grid sprite (1–256 per side). See *Pixel art* below. |

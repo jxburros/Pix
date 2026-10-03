@@ -42,7 +42,7 @@ def test_operation_schema_is_in_tools_list(tmp_path):
                 jsonschema.validate({"operations": [invalid]}, schema)
         assert "vixl_ai" not in tools
         assert "args" not in tools["vixl_ai_generate"].inputSchema["properties"]
-        assert tools["vixl_ai_generate"].inputSchema["properties"]["seed"]["anyOf"][0]["type"] == "integer"
+        assert tools["vixl_ai_generate"].inputSchema["properties"]["seed"]["type"] == "integer"
         # Design and pixel/animation operations extend the catalog; shared constraints keep the inline schema bounded.
         assert len(json.dumps(schema)) < 20000
 
@@ -57,7 +57,8 @@ def test_compact_changes_and_dry_run(tmp_path):
     original = (tmp_path / "poster.vixl").read_bytes()
     result = session.apply([{"type": "move", "target": ident, "x": 12}], dry_run=True)
     assert len(json.dumps(result)) < 600
-    assert result["changes"]["layers"][ident]["x"] == {"before": 0, "after": 12}
+    assert result["changes"]["layers"][ident]["x"] == 12
+    assert result["changes"]["layers"][ident]["bounds"][0] == 12
     assert (tmp_path / "poster.vixl").read_bytes() == original
     assert session.inspect()["layers"][0]["x"] == 0
     full = session.apply([{"type": "move", "target": ident, "x": 12}], detail="full")
@@ -94,7 +95,7 @@ def test_session_caches_and_reloads_external_changes(tmp_path, monkeypatch):
     assert session.inspect()["layers"][0]["x"] == 8
     assert len(calls) == 2
     with pytest.raises(VixlError):
-        session.apply([{"type": "move", "x": 10}, {"type": "opacity", "value": 4}])
+        session.apply([{"type": "move", "x": 10}, {"type": "opacity", "value": 400}])
     assert session.inspect()["layers"][0]["x"] == 8
 
 

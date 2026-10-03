@@ -200,11 +200,9 @@ def execute_design(project, op):
             layer = project.layer(op.get("target"))
             require(layer["type"] in ("raster", "frame"), "Replace Contents requires an image layer")
             if "path" in op:
-                from .assets import add_image, decode, read_bounded
+                from .assets import add_encoded, read_bounded
 
-                layer["asset"] = add_image(
-                    project, decode(read_bounded(op["path"], project.limits.max_asset_bytes), project.limits)
-                )
+                layer["asset"], _ = add_encoded(project, read_bounded(op["path"], project.limits.max_asset_bytes))
             elif "asset" in op:
                 project.image(op["asset"])
                 layer["asset"] = op["asset"]
@@ -410,7 +408,12 @@ def validate_gradient(data, state):
 def validate_style(name, settings, state):
     from .render import color
 
-    require(name in STYLES and isinstance(settings, dict), "Invalid layer style")
+    require(
+        name in STYLES and isinstance(settings, dict),
+        f"Invalid layer style {name!r}; styles: {', '.join(STYLES)}",
+        field="name",
+        allowed=list(STYLES),
+    )
     common = {"enabled", "opacity"}
     allowed = {
         "drop-shadow": {"color", "dx", "dy", "blur"},
@@ -419,7 +422,13 @@ def validate_style(name, settings, state):
         "color-overlay": {"color"},
         "gradient-overlay": {"start", "end", "stops", "direction", "angle"},
     }[name] | common
-    require(not set(settings) - allowed, f"Invalid {name} settings")
+    unknown = sorted(set(settings) - allowed)
+    require(
+        not unknown,
+        f"Invalid {name} settings {', '.join(map(repr, unknown))}; allowed: {', '.join(sorted(allowed))}",
+        field="settings." + unknown[0] if unknown else None,
+        allowed=sorted(allowed),
+    )
     if "enabled" in settings:
         require(isinstance(settings["enabled"], bool), "Style enabled must be boolean")
     for key, low, high in (
