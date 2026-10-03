@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add the `skills/vixl` agent skill covering MCP tools, CLI commands, REST routes, the Python API, every operation type, AI providers and tested recipes.
+
 ## 0.10.0
 
 - Rename the application to Vixl throughout: `vixl` CLI, `vixl-engine` distribution, `vixl` Python API, and `VixlError`.
