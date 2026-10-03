@@ -93,7 +93,11 @@ class Project:
         image = decode(self.assets[asset], self.limits, mode, size_hint)
         size = image.width * image.height * len(image.getbands())
         if size <= DECODED_BUDGET // 2:
-            while cache and sum(i.width * i.height * len(i.getbands()) for i in cache.values()) + size > DECODED_BUDGET:
+            while (
+                cache
+                and sum(i.width * i.height * len(i.getbands()) for i in cache.values()) + size
+                > DECODED_BUDGET
+            ):
                 cache.pop(next(iter(cache)))
             cache[key] = image.copy()
         return image
@@ -136,7 +140,9 @@ class Project:
         while "state" not in self.nodes[ident]:
             depth += 1
             ident = self.nodes[ident]["parent"]
-            require(ident is not None and depth <= len(self.nodes), "Invalid history chain", "invalid_project")
+            require(
+                ident is not None and depth <= len(self.nodes), "Invalid history chain", "invalid_project"
+            )
         return depth
 
     def _state_at(self, ident):
@@ -149,7 +155,9 @@ class Project:
             chain.append(self.nodes[cursor]["delta"])
             cursor = self.nodes[cursor]["parent"]
             require(
-                cursor is not None and len(chain) <= len(self.nodes), "Invalid history chain", "invalid_project"
+                cursor is not None and len(chain) <= len(self.nodes),
+                "Invalid history chain",
+                "invalid_project",
             )
         state = deepcopy(self.nodes[cursor]["state"])
         for delta in reversed(chain):
@@ -243,6 +251,7 @@ class Project:
                 raise located(exc, index, operation, len(operations)) from exc
         operations = validated
         candidate = self.clone()
+        candidate._resource_budget = self.limits.max_operations - len(operations)
         before = candidate.inspect()
         for index, operation in enumerate(operations):
             try:
@@ -257,6 +266,7 @@ class Project:
         from .validation import check_state
 
         check_state(candidate, candidate.state)
+        candidate.__dict__.pop("_resource_budget", None)
         after = candidate.inspect()  # Also resolves constraints, rejecting cycles atomically.
         changes = {
             key: {"before": before.get(key), "after": after.get(key)}
@@ -325,7 +335,11 @@ class Project:
             ref = "head~1"
         base, _, back = ref.partition("~")
         require(not back or back.isdigit(), "Use REF~N with a whole number N", field="ref")
-        node = self.head if base in ("head", "HEAD", "current") else self.branches.get(base, self.checkpoints.get(base, base))
+        node = (
+            self.head
+            if base in ("head", "HEAD", "current")
+            else self.branches.get(base, self.checkpoints.get(base, base))
+        )
         require(
             node in self.nodes,
             f"Unknown history reference {ref!r}; use head, previous, head~N, a branch, checkpoint or revision ID",

@@ -5,7 +5,7 @@ description: Create and edit layered, editable images with Vixl (the `vixl` CLI,
 
 # Vixl for agents
 
-Vixl is a headless, programmable image-document engine. A `.vixl` file is a ZIP holding a layer
+Vixl is a headless, programmable image-document engine designed for autonomous AI agents; humans can use the same interfaces. A `.vixl` file is a ZIP holding a layer
 stack (raster images, text, shapes, groups, pixel grids, adjustment layers…), effects, masks,
 constraints, variables, styles, artboards, animation frames and a full branching history. Every
 interface — CLI, `.vixlscript`, Python, REST, MCP, AI planner — compiles to the **same canonical
@@ -23,6 +23,12 @@ Key properties to rely on:
 - **Errors are structured and fail loudly** (`layer_not_found`, `invalid_operation`,
   `validation_failed`, `resource_limit`, `spacing_mismatch`…). Nothing fails silently — except
   the one gotcha listed below.
+
+## New in 0.11
+
+Discover commands with `vixl commands --json` and shape shortcuts with `vixl shapes`. Command help works without an open document. CLI edits now default to compact results; add `--detail full` for snapshots. Use named palettes, built-in/custom templates, overall/style guidance, explicit HTTPS/local fonts, expanded shapes and single-contour Bézier paths. SVG keeps supported simple geometry as vectors and embeds other appearances as PNGs. PNG preserves transparency; JPG flattens against an explicit background.
+
+See [resources](references/resources.md) for the new MCP tools and CLI/operation examples. Discover authenticated provider models with `vixl models --refresh` or `vixl_models_list`; native Anthropic/Gemini and OpenAI-compatible Mistral/Meta join the existing providers. Midjourney requires an authorized HTTP gateway, not a fabricated official API.
 
 ## 1. Pick the interface
 

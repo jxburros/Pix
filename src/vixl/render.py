@@ -105,6 +105,7 @@ def font_for(project, layer):
     size = int(layer.get("size", 48))
     require(1 <= size <= 4096, "Font size must be 1–4096")
     font = layer.get("font", "DejaVuSans.ttf")
+    font = project.state.get("fonts", {}).get(font, font)
     try:
         if font in project.assets:
             return ImageFont.truetype(io.BytesIO(project.assets[font]), size)
@@ -618,6 +619,19 @@ def export(
     if profile:
         require(profile in EXPORT_PROFILES, f"Unknown export profile: {profile}")
         settings = deepcopy(EXPORT_PROFILES[profile])
+    requested_format = (
+        format or settings.get("format") or ("SVG" if path and Path(path).suffix.lower() == ".svg" else "")
+    ).upper()
+    if requested_format == "SVG":
+        require(not profile, "SVG export does not use raster export profiles")
+        from .svg import export_svg
+
+        data = export_svg(project, scale=scale, variables=variables, artboard=artboard, comp=comp)
+        if path:
+            Path(path).write_bytes(data)
+        return data
+    if format:
+        format = {"JPG": "JPEG", "TIF": "TIFF"}.get(format.upper(), format.upper())
     image = render(project, variables, artboard, comp)
     size = settings.pop("size", None)
     if size:

@@ -1,5 +1,7 @@
 # Canonical operations reference
 
+Vixl is headless and designed for autonomous AI agents; humans can use the same interfaces. See [new resources and SVG](resources.md) for 0.11 additions.
+
 Every edit in Vixl is a JSON object with a `type`. Send a single object, an array, or
 `{"operations": [...]}` to: MCP `vixl_operations_apply(operations=[...])`, CLI `vixl apply FILE|-`,
 REST `POST /operations`, or Python `Project.apply(...)`. Common alternative spellings (`rect`,

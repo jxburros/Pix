@@ -201,7 +201,9 @@ def normalize_operation(operation, properties, known_types, effects, notes, inde
             op[canonical] = op.pop(key)
             note(f"{key!r} → {canonical!r}")
 
-    if kind == "shape" and isinstance(op.get("shape"), str):
+    from .design_schema import SHAPES
+
+    if kind == "shape" and isinstance(op.get("shape"), str) and op["shape"] not in SHAPES:
         guess = op["shape"].lower().replace("_", "-").replace(" ", "-")
         if guess not in SHAPE_TYPES:
             # "hexagonal", "circular", "rectangular", "stars" → their base shape.
@@ -228,7 +230,9 @@ def normalize_operation(operation, properties, known_types, effects, notes, inde
             return op
         if name != op["name"] and name in effects:
             op["name"] = name
-    blur = kind in ("blur", "gaussian-blur") or (kind == "effect" and op.get("name") in ("blur", "gaussian-blur"))
+    blur = kind in ("blur", "gaussian-blur") or (
+        kind == "effect" and op.get("name") in ("blur", "gaussian-blur")
+    )
     if blur and "radius" in op and "amount" not in op and "value" not in op:
         # Blur strength lives in amount; a radius field used to be accepted and silently ignored.
         op["amount"] = op.pop("radius")

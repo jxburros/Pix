@@ -18,7 +18,7 @@ from .errors import VixlError, require
 from .model import Limits
 from .validation import assert_rule, dependencies, validate
 
-HELP = """Vixl — programmable image editing
+HELP = """Vixl — headless design engine for autonomous AI agents
 
 Usage: vixl [--project FILE] [--json] COMMAND ...
        vixl                         Interactive editing shell
@@ -53,6 +53,8 @@ History:   undo [N], redo [N], history, checkpoint NAME, branch NAME,
 Automate:  apply FILE|- [--dry-run], run SCRIPT, batch GLOB --run SCRIPT --output DIR,
            each layer --name PATTERN -- COMMAND, preset save|apply|show NAME,
            transaction begin|commit|rollback, assert RULE, validate [PROFILE]
+Resources: commands, shapes, palette list|show|add|apply, template list|show|add|new|apply,
+           guidance list|show|add|apply|import|remove, font list|import, providers, models
 Output:    export FILE [--quality N] [--scale 2x] [--profile NAME],
            render [PROJECT] --out FILE [--set NAME=VALUE] [--artboard NAME] [--comp NAME],
            render --data rows.csv --out DIR, export-screens --out DIR --scales 1 2,
@@ -63,8 +65,8 @@ AI:        ask PROMPT [--apply], generate --prompt TEXT --provider NAME,
 Updates:   update [--check | --rollback], updates [on | off | status]
 Services:  serve [--host 127.0.0.1] [--port 8765], mcp [--workspace DIR] [--schema slim] [--planner]
 
-Options: --project/-p FILE, --json, --allow-linked, --plugins, --max-pixels N, --version
-Use vixl COMMAND --help for editing command arguments. See docs/commands.md.
+Options: --project/-p FILE, --json, --allow-linked, --plugins, --max-pixels N, --detail compact|full, --version
+Use vixl commands --json for a complete inventory; vixl COMMAND --help works without a document. See docs/commands.md.
 """
 
 
@@ -117,7 +119,7 @@ def output_options(args, command):
     p.add_argument("--quality", type=int, default=90)
     p.add_argument("--scale", default="1")
     p.add_argument("--profile")
-    p.add_argument("--format", choices=["PNG", "JPEG", "WEBP", "TIFF", "AVIF"])
+    p.add_argument("--format", choices=["PNG", "JPEG", "WEBP", "TIFF", "AVIF", "SVG", "JPG"])
     p.add_argument("--background", default="white")
     p.add_argument("--set", action="append")
     p.add_argument("--artboard")
@@ -134,6 +136,7 @@ def dispatch(argv):
     global_parser.add_argument("--allow-linked", action="store_true")
     global_parser.add_argument("--plugins", action="store_true")
     global_parser.add_argument("--max-pixels", type=int, default=40_000_000)
+    global_parser.add_argument("--detail", choices=["compact", "full"], default="compact")
     global_parser.add_argument("--version", action="store_true")
     options, tokens = global_parser.parse_known_args(argv)
     if options.version:
@@ -151,6 +154,50 @@ def dispatch(argv):
     limits = Limits(max_pixels=options.max_pixels)
     tokens = normalize(tokens) if tokens[0] != "text" else tokens
     cmd, args = tokens[0], tokens[1:]
+    if cmd in ("open", "schema") and any(arg in ("--help", "-h") for arg in args):
+        return command_help(cmd, args), options.json
+    if cmd in ("commands", "shapes"):
+        from .operations import OPERATION_TYPES
+        from .design_schema import SHAPES
+        from .render import EFFECTS
+
+        return (
+            {"shapes": list(SHAPES)}
+            if cmd == "shapes"
+            else {
+                "commands": sorted(
+                    (
+                        set(OPERATION_TYPES)
+                        - {
+                            "palette-apply",
+                            "template-apply",
+                            "font-register",
+                            "effect-set",
+                            "effect-disable",
+                            "effect-enable",
+                            "effect-remove",
+                            "preset-save",
+                            "preset-apply",
+                        }
+                    )
+                    | set(EFFECTS)
+                    | {"filter"}
+                    | set(
+                        "new open save status inspect describe layers effects manifest dependencies reproduce schema check batch convert render export export-screens export-animation spacing pixels animation info sample histogram apply run each undo redo checkpoint branch checkout branches history transaction compare assert validate preset ai ask generate detect ocr serve mcp update updates commands shapes palette template guidance font providers models".split()
+                    )
+                )
+            }
+        ), options.json
+    if cmd in ("palette", "template", "guidance"):
+        from .resource_cli import standalone
+
+        result, needs_project = standalone(cmd, args, limits)
+        if not needs_project:
+            return result, options.json
+    if cmd in ("providers", "models"):
+        from .models import discovery_command
+
+        return discovery_command(cmd, args), options.json
     if cmd in ("update", "updates"):
         from . import updater
 
@@ -185,12 +232,30 @@ def dispatch(argv):
         project = Project(*dimensions(a.size), a.background, limits=limits)
         project.save(a.out)
         remember(a.out)
-        return project.inspect(), options.json
+        return (
+            project.inspect()
+            if options.detail == "full"
+            else {
+                "path": str(project.path),
+                "canvas": project.state["canvas"],
+                "layers": len(project.state["layers"]),
+                "head": project.head,
+            }
+        ), options.json
     if cmd == "open":
         require(len(args) == 1, "Use open FILE")
         project = Project.load(args[0], limits=limits, allow_linked=options.allow_linked)
         remember(args[0])
-        return project.inspect(), options.json
+        return (
+            project.inspect()
+            if options.detail == "full"
+            else {
+                "path": str(project.path),
+                "canvas": project.state["canvas"],
+                "layers": len(project.state["layers"]),
+                "head": project.head,
+            }
+        ), options.json
     if cmd == "schema":
         from .schema import operation_schema
 
@@ -238,6 +303,8 @@ def dispatch(argv):
         path = current_path(options.project) if options.project or not a.workspace else None
         mcp_server(path, limits, workspace=a.workspace, schema=a.schema, planner=a.planner).run()
         return None, options.json
+    if "--help" in args or "-h" in args:
+        return command_help(cmd, args), options.json
     path = current_path(options.project)
     if cmd == "serve":
         from .interfaces import serve
@@ -251,13 +318,52 @@ def dispatch(argv):
         return None, options.json
     with FileLock(str(path) + ".lock", timeout=10, is_singleton=True):
         project = Project.load(path, limits=limits, allow_linked=options.allow_linked)
-        result, changed = project_command(project, cmd, args)
+        result, changed = project_command(project, cmd, args, detail=options.detail)
         if changed:
             project.save()
     return result, options.json
 
 
-def project_command(project, cmd, args):
+def command_help(cmd, args):
+    manual = {
+        "open": "open FILE",
+        "schema": "schema",
+        "canvas": "canvas resize SIZE | preset NAME | background COLOR",
+        "save": "save [FILE]",
+        "inspect": "inspect [LAYER]",
+        "status": "status",
+        "describe": "describe [image]",
+        "layers": "layers",
+        "effects": "effects [LAYER]",
+        "manifest": "manifest",
+        "dependencies": "dependencies",
+        "reproduce": "reproduce --check",
+        "pixels": "pixels [LAYER]",
+        "animation": "animation",
+        "undo": "undo [COUNT]",
+        "redo": "redo [COUNT]",
+        "checkpoint": "checkpoint NAME",
+        "branch": "branch NAME",
+        "checkout": "checkout REF",
+        "branches": "branches",
+        "history": "history",
+        "transaction": "transaction begin|commit|rollback",
+        "assert": "assert RULE",
+        "each": "each layer [--name PATTERN] [--type TYPE] -- COMMAND",
+        "serve": "serve [--host HOST] [--port PORT] [--token-env ENV]",
+        "preset": "preset save|apply|show NAME [--set KEY=VALUE]",
+    }
+    if cmd in manual:
+        return "Usage: vixl " + manual[cmd]
+    # Parsers handle --help before validation or execution, using a disposable document.
+    return project_command(Project(1, 1), cmd, args)[0]
+
+
+def project_command(project, cmd, args, *, detail="compact"):
+    if cmd in ("palette", "template", "guidance", "font"):
+        from .resource_cli import project_command as resource_command
+
+        return resource_command(project, cmd, args)
     if cmd in ("inspect", "status", "describe"):
         if cmd == "describe" and args == ["image"]:
             from .ai import ai_command
@@ -353,10 +459,14 @@ def project_command(project, cmd, args):
         return result, False
     if cmd == "check":
         p = Parser(prog="vixl check")
-        p.add_argument("--checks", nargs="+", choices=["bounds", "overlap", "contrast", "safe_area", "legibility"])
+        p.add_argument(
+            "--checks", nargs="+", choices=["bounds", "overlap", "contrast", "safe_area", "legibility"]
+        )
         p.add_argument("--targets", nargs="+")
         p.add_argument("--safe-area", help="Inset from every edge: pixels or a percentage such as 5%%")
-        p.add_argument("--avoid", nargs=4, action="append", metavar=("X", "Y", "W", "H"), help="Reserved zone")
+        p.add_argument(
+            "--avoid", nargs=4, action="append", metavar=("X", "Y", "W", "H"), help="Reserved zone"
+        )
         p.add_argument("--thumbnail-width", type=int, default=320)
         p.add_argument("--min-thumbnail-text", type=float, default=10)
         p.add_argument("--min-contrast", type=float)
@@ -427,7 +537,7 @@ def project_command(project, cmd, args):
         p.add_argument("--dry-run", action="store_true")
         a = p.parse_args(args)
         ops = read_json(a.file) if cmd == "apply" else compile_script(a.file)
-        return project.apply(ops, dry_run=a.dry_run), not a.dry_run
+        return project.apply(ops, dry_run=a.dry_run, detail=detail), not a.dry_run
     if cmd == "each":
         import fnmatch
 
@@ -445,7 +555,7 @@ def project_command(project, cmd, args):
             if fnmatch.fnmatchcase(layer["name"], a.name)
             and (not a.type or layer["type"] == {"image": "raster"}.get(a.type, a.type))
         ]
-        return project.apply(ops) if ops else {"operations": 0}, bool(ops)
+        return project.apply(ops, detail=detail) if ops else {"operations": 0}, bool(ops)
     if cmd in ("undo", "redo"):
         require(len(args) <= 1, "Expected optional count")
         getattr(project, cmd)(int(args[0]) if args else 1)
@@ -461,7 +571,9 @@ def project_command(project, cmd, args):
             "current": project.current_branch,
         }, False
     if cmd == "history":
-        return [{k: v for k, v in node.items() if k not in ("state", "delta")} for node in project.nodes.values()], False
+        return [
+            {k: v for k, v in node.items() if k not in ("state", "delta")} for node in project.nodes.values()
+        ], False
     if cmd == "transaction":
         require(
             len(args) == 1 and args[0] in ("begin", "commit", "rollback"),
@@ -509,8 +621,8 @@ def project_command(project, cmd, args):
     ):
         from .ai import ai_command
 
-        return ai_command(project, cmd, args)
-    return project.apply(compile_command([cmd, *args])), True
+        return ai_command(project, cmd, args, detail=detail)
+    return project.apply(compile_command([cmd, *args]), detail=detail), True
 
 
 def batch(args, limits, allow_linked):

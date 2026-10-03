@@ -1,5 +1,7 @@
 # Design tools and template production
 
+Vixl is a headless application designed for autonomous AI agents; humans can use the same interfaces.
+
 All edits below are canonical operations, available through Python `Project.apply`, CLI commands/scripts, REST `/operations`, and MCP `vixl_operations_apply`. `vixl schema` describes their fields. Successful edits participate in atomic batches, dry runs, undo/redo, transactions, and `.vixl` persistence. Existing documents remain readable. New design documents require this version of the engine.
 
 ## Groups, clipping, shapes, and repeats
@@ -15,7 +17,7 @@ vixl clip stripes sun
 
 The stripe stays one editable layer. Repeat counts include the original; `dx/dy` are nonnegative offsets between copies and `dw/dh` change each copy's size. `repeat-blend stripe --count 16 --dy 37 --end '{"height":21,"fill":"#4853a4"}'` interpolates size and RGBA color to the last copy. Reapplying repeat replaces its settings; `--count 1` leaves only the original. Counts are bounded to 512 and all resulting dimensions are checked before allocation.
 
-Shapes support `rectangle`, `rounded-rectangle`, `ellipse`, `polygon`, `star`, and `line`; options include `--fill`, `--stroke`, `--stroke-width`, `--radius`, `--sides`, and star `--inner-radius` (0.01–1). Geometry is retained and redrawn at the layer's current size with bounded antialiasing. These are procedural RGBA shapes, not an SVG import/export or editable Bézier system.
+Shapes support `rectangle`, `rounded-rectangle`, `ellipse`, `polygon`, `star`, and `line`; options include `--fill`, `--stroke`, `--stroke-width`, `--radius`, `--sides`, and star `--inner-radius` (0.01–1). Geometry is retained and redrawn at the layer's current size with bounded antialiasing. Version 0.11.0 adds named shape shortcuts and editable single-contour Bézier paths, plus SVG export of simple geometry. See [design resources and vector export](agent-resources.md) for syntax and raster fallback limits.
 
 Groups preserve member stacking order and use local child coordinates. Moving, hiding, masking, styling, or changing the opacity of a group affects its combined contents once. Groups nest to 16 dependency levels and duplicate with independent child IDs; edits address children by their existing names or IDs. Group bounds are fixed to the union of member bounds at creation, and resizing transforms the combined group raster. Content moved outside those bounds is cropped. Constraints between layers and clipping references must stay among siblings; `canvas` inside a group means the group's local content box. Grouping nonadjacent layers places the group at the highest selected slot.
 

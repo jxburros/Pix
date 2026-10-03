@@ -18,6 +18,16 @@ def check_state(project, state):
     project.limits.size(c["width"], c["height"])
     require(c["color_mode"] == "rgba8", "Only RGBA8 documents are supported", "invalid_project")
     color(resolve_color(c["background"], state))
+    require(isinstance(state.get("design_guidance", {}), dict), "Invalid design guidance")
+    from .resources import validate
+    from .design import named
+    for key, text in state.get("design_guidance", {}).items():
+        named(key)
+        validate("guidance", text)
+    require(isinstance(state.get("fonts", {}), dict), "Invalid font registry")
+    for key, asset in state.get("fonts", {}).items():
+        named(key)
+        require(asset in project.assets and asset.startswith("fonts/"), "Missing registered font")
     layers = state["layers"]
     require(
         isinstance(layers, list) and len(layers) <= project.limits.max_layers,

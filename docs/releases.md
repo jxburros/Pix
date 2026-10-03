@@ -1,5 +1,7 @@
 # Windows installation, updates, and GitHub releases
 
+Vixl is a headless application designed for autonomous AI agents; humans can use the same interfaces.
+
 ## Install once
 
 1. Open [the latest GitHub release](https://github.com/jxburros/Vixl/releases/latest).
@@ -71,8 +73,8 @@ To publish a stable release:
 3. Tag the reviewed commit with its exact version and push the tag:
 
    ```bash
-   git tag v0.10.0 <reviewed-commit>
-   git push origin v0.10.0
+   git tag v0.11.0 <reviewed-commit>
+   git push origin v0.11.0
    ```
 
 4. The tag workflow re-runs tests, checks tag/package-version consistency, builds the distributions, and creates a **draft** GitHub release. It uploads every artifact before publishing it as the latest stable release. No release becomes visible to the updater while files are still being uploaded.

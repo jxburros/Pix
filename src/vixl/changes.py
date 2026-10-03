@@ -18,6 +18,8 @@ def compact_changes(before, after):
         "guides",
         "grids",
         "symbols",
+        "design_guidance",
+        "fonts",
     ):
         if before.get(key) != after.get(key):
             changes[key] = after.get(key)

@@ -56,34 +56,34 @@ def shape_image(project, layer):
     pad = width / 2 if stroke[3] else 0
     box = (pad, pad, w * factor - 1 - pad, h * factor - 1 - pad)
     shape = layer["shape"]
-    if shape in ("rectangle", "rounded-rectangle", "ellipse"):
+    if shape in ("rectangle", "rounded-rectangle", "ellipse", "capsule"):
         fn = {
             "rectangle": draw.rectangle,
             "rounded-rectangle": draw.rounded_rectangle,
             "ellipse": draw.ellipse,
+            "capsule": draw.rounded_rectangle,
         }[shape]
         extra = (
-            {"radius": layer.get("radius", min(w, h) / 5) * factor} if shape == "rounded-rectangle" else {}
+            {"radius": layer.get("radius", min(w, h) / (2 if shape == "capsule" else 5)) * factor}
+            if shape in ("rounded-rectangle", "capsule")
+            else {}
         )
         fn(box, fill=fill, outline=stroke if width and stroke[3] else None, width=max(1, width), **extra)
     elif shape == "line":
         draw.line(box, fill=stroke if stroke[3] else fill, width=max(1, width))
     else:
-        sides = layer.get("sides", 5 if shape == "star" else 6)
-        count = sides * 2 if shape == "star" else sides
-        points = []
-        for i in range(count):
-            r = layer.get("inner_radius", 0.5) if shape == "star" and i % 2 else 1
-            a = i * 2 * math.pi / count - math.pi / 2
-            points.append(
-                (
-                    (w * factor - 1) / 2 + math.cos(a) * (box[2] - box[0]) / 2 * r,
-                    (h * factor - 1) / 2 + math.sin(a) * (box[3] - box[1]) / 2 * r,
-                )
-            )
-        draw.polygon(points, fill=fill)
-        if width and stroke[3]:
-            draw.line(points + [points[0]], fill=stroke, width=width, joint="curve")
+        from .geometry import shape_path, path_polygons
+
+        path, view = shape_path(layer)
+        for polygon in path_polygons(path):
+            points = [
+                (box[0] + x / view[0] * (box[2] - box[0]), box[1] + y / view[1] * (box[3] - box[1]))
+                for x, y in polygon
+            ]
+            if len(points) >= 3:
+                draw.polygon(points, fill=fill)
+            if width and stroke[3] and len(points) >= 2:
+                draw.line(points, fill=stroke, width=width, joint="curve")
     return image.resize((w, h), Image.Resampling.LANCZOS)
 
 

@@ -12,6 +12,7 @@ def compile_design(cmd, args):
     p = Parser(prog=f"vixl {cmd}")
     if cmd == "shape":
         p.add_argument("shape")
+        p.add_argument("--path")
         for key in ("fill", "stroke"):
             p.add_argument("--" + key)
         for key in ("stroke-width", "radius", "inner-radius"):

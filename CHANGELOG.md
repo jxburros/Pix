@@ -2,6 +2,16 @@
 
 ## 0.11.0
 
+- Position Vixl and its documentation as a headless application designed for autonomous AI agents.
+- Add self-contained SVG exports with native simple shapes/Bézier paths and documented raster fallbacks; expose export formats through CLI, Python, REST and MCP. Verify transparent PNG and JPEG background flattening.
+- Add 16 shape/path shortcuts, editable single-contour Bézier paths, and geometry guidance for rotated logo construction.
+- Add 32 palettes, six reusable design templates, custom resource registration, and portable overall/style design guidance included in AI planning.
+- Add explicit local/HTTPS TTF/OTF font imports, registered document fonts, and workspace font tools.
+- Add document-independent command discovery/help and compact CLI edit responses with `--detail full` opt-in.
+- Add authenticated model discovery, capability routing, and native Anthropic/Gemini plus OpenAI-compatible Mistral/Meta adapters. Midjourney is supported only through a user-configured HTTP gateway.
+- Cover new features with offline regression tests; live paid-provider inference requires user credentials and is not exercised by CI.
+
+
 Vixl's main users are AI agents; this release targets long agent sessions, fewer round trips and fewer tokens.
 
 **Long sessions**

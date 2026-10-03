@@ -3,6 +3,7 @@
 from .design_schema import TYPES as DESIGN_TYPES
 from .pixel import PIXEL_TYPES
 from .animation import ANIMATION_TYPES
+from .resources import RESOURCE_TYPES
 
 from copy import deepcopy
 import hashlib
@@ -35,7 +36,7 @@ ALIASES = {
     "make_selection": "select",
 }
 
-OPERATION_TYPES = list(DESIGN_TYPES + PIXEL_TYPES + ANIMATION_TYPES) + [
+OPERATION_TYPES = list(DESIGN_TYPES + PIXEL_TYPES + ANIMATION_TYPES + RESOURCE_TYPES) + [
     "add",
     "solid",
     "gradient",
@@ -198,6 +199,11 @@ def execute(project, op):
     kind = ALIASES.get(kind, kind)
     require(isinstance(kind, str), "Operation requires a type")
     target = op.get("target", op.get("layer"))
+    if kind in RESOURCE_TYPES:
+        from .resources import execute_resource
+
+        execute_resource(project, op)
+        return
     if kind in PIXEL_TYPES:
         from .pixel import execute_pixel
 
@@ -258,7 +264,7 @@ def execute(project, op):
             layer.update(
                 {
                     "text": op["text"],
-                    "font": op.get("font", "DejaVuSans.ttf"),
+                    "font": project.state.get("fonts", {}).get(op.get("font"), op.get("font", "DejaVuSans.ttf")),
                     "size": op.get("size", 48),
                     "color": op.get("color", "white"),
                     "align": op.get("align", "left"),

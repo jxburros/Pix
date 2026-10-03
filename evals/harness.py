@@ -363,4 +363,3 @@ def markdown(results, summary, meta):
 def run(tasks, agent, schema="full", keep=None):
     results = [run_task(deepcopy(task), agent, schema, keep) for task in tasks]
     return results, summarize(results)
-

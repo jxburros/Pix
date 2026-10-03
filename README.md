@@ -1,6 +1,8 @@
 # Vixl
 
-**A programmable image-document engine for humans, scripts, and AI agents.**
+**A headless image-document engine designed for autonomous AI agents.**
+
+Vixl is built for AI agents to create, inspect, edit, measure, and export designs autonomously through MCP, structured operations, Python, REST, or the CLI. Humans can use the same interfaces. It needs no graphical display.
 
 Vixl keeps images editable: layers, text, masks, effects, constraints, variables, and creative history live in a portable `.vixl` document. CLI commands, Python, REST, MCP, and AI plans all use one structured operation engine.
 
@@ -12,7 +14,7 @@ This initial implementation covers the specification's core editor and automatio
 
 ## Install on Windows
 
-Download **Vixl-Setup-0.10.0-windows-x64.exe** from [GitHub Releases](https://github.com/jxburros/Vixl/releases/latest) and run it. The installer bundles Python and the REST/MCP dependencies, installs for your Windows account without administrator access, and adds `vixl` to your user PATH. Completely close and reopen your terminal application after installation:
+Download **Vixl-Setup-0.11.0-windows-x64.exe** from [GitHub Releases](https://github.com/jxburros/Vixl/releases/latest) and run it. The installer bundles Python and the REST/MCP dependencies, installs for your Windows account without administrator access, and adds `vixl` to your user PATH. Completely close and reopen your terminal application after installation:
 
 ```text
 vixl --version
@@ -48,6 +50,23 @@ vixl --help
 ```
 
 The core install is `pip install -e .`; REST and MCP are optional extras. A default DejaVu Sans font is bundled, with its license, so basic text works without system fonts.
+
+## Discover resources and start from a template
+
+```bash
+vixl commands --json
+vixl shapes --json
+vixl export --help
+vixl palette list
+vixl template new social-square -o campaign.vixl --set title='New launch'
+vixl guidance apply minimal --style minimal
+vixl palette apply ocean
+vixl font import Brand-Regular.ttf --name brand
+vixl text add 'Brand headline' --font brand --name headline --size 64
+vixl export campaign.svg
+```
+
+Discovery and command help work before opening a document. CLI editing responses are compact by default; use `--detail full` for snapshots. For sustained autonomous work, use a persistent MCP/REST session or atomic `apply` batches. The [resource guide](docs/agent-resources.md) covers 32 palettes, built-in and custom templates, overall/style guidance, HTTPS font imports, shape shortcuts and editable Bézier paths.
 
 ## A first document
 
@@ -168,7 +187,7 @@ vixl export - --format PNG > preview.png
 
 ## AI and agent interfaces
 
-Vixl is built primarily to be driven by AI agents over MCP. Generative features require a configured external provider; Vixl does not ship model weights or simulate AI results. Built-in adapters support OpenAI, Google Gemini, Black Forest Labs FLUX, Anthropic Claude (vision and planning), ComfyUI API workflows, Automatic1111, and a documented HTTP gateway.
+AI features require a configured external provider; Vixl does not ship model weights or simulate AI results. Built-in adapters support OpenAI, Anthropic, Mistral, Meta Llama, Gemini, Black Forest Labs FLUX, ComfyUI API workflows, Automatic1111, and a documented HTTP gateway. Authenticated model discovery and capability routing select available models for the requested task. Midjourney requires a configured HTTP gateway; it has no supported public model API. See [provider discovery](docs/providers.md).
 
 ```bash
 vixl ask 'Make the logo 20% smaller and align it top-right with a 40px margin'
@@ -238,4 +257,4 @@ python -m pip wheel . --no-deps --wheel-dir dist
 - [Specification coverage and known limitations](docs/coverage.md)
 - [Agent evaluation suite](evals/README.md)
 
-This is an RGBA8 raster engine, not a GIMP file-format implementation. CMYK, RAW development, SVG/vector editing, brushes, full animation timelines, desktop GUI/TUI, and GIMP/Photoshop project compatibility are outside this implementation. AI adapter contracts are tested offline; live providers require your own service, model, workflow, and credentials.
+Vixl processes raster images in RGBA8 and retains procedural shapes and supported Bézier paths. SVG exports native simple geometry and embeds raster appearances for other layers; PNG preserves transparency and JPG flattens it against a chosen background. CMYK, RAW development, arbitrary SVG import, brushes, full animation timelines, desktop GUI/TUI, and GIMP/Photoshop project compatibility are outside this implementation. AI adapter contracts are tested offline; live providers require your own service, model, workflow, and credentials.

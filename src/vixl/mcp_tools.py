@@ -56,7 +56,7 @@ def service_operation_schema(slim=False):
         if kind in EFFECTS:
             continue  # All effects use the canonical {type: effect, name: ...} form.
         for field in ("path", "linked", "font"):
-            if kind != "text-layout" or field != "path":
+            if kind not in ("text-layout", "shape") or field != "path":
                 props.pop(field, None)
         if kind in ("add", "frame"):
             variant.pop("anyOf")
@@ -177,8 +177,9 @@ def export_file(session, path, overwrite=False, document=None, **options):
     with session._mutex:
         destination = session.resolve(path)
         require(
-            destination.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff", ".avif"),
-            "Choose a PNG, JPEG, WEBP, TIFF or AVIF filename",
+            destination.suffix.lower()
+            in (".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff", ".avif", ".svg"),
+            "Choose a PNG, JPEG, WEBP, TIFF, AVIF or SVG filename",
             field="path",
         )
         require(destination.parent.is_dir(), "Destination directory must exist", field="path")
@@ -193,7 +194,9 @@ def export_file(session, path, overwrite=False, document=None, **options):
             )
             with session.project(document=document) as project:
                 data = project.export(format=fmt, **options)
-            fd, temporary_path = temporary(destination.parent, like=destination if destination.exists() else None)
+            fd, temporary_path = temporary(
+                destination.parent, like=destination if destination.exists() else None
+            )
             try:
                 with os.fdopen(fd, "wb") as stream:
                     stream.write(data)
@@ -295,6 +298,95 @@ def build_server(session, *, schema="full", planner=False):
         return wrapper
 
     @tool
+    def vixl_resources_list(kind: Literal["palettes", "templates", "guidance"]) -> dict:
+        """Discover built-in and user-added design resources without an open document."""
+        from .resources import catalog
+
+        return {"kind": kind, "names": sorted(catalog(kind))}
+
+    @tool
+    def vixl_resource_get(kind: Literal["palettes", "templates", "guidance"], name: str) -> dict:
+        """Read a named palette, template, or style guide before applying it."""
+        from .resources import get
+
+        return {"name": name, "value": get(kind, name)}
+
+    @tool
+    def vixl_resource_add(
+        kind: Literal["palettes", "templates", "guidance"], name: str, value: list | dict | str
+    ) -> dict:
+        """Register custom JSON design data or plain-text guidance in the user's library."""
+        from .resources import register
+
+        return register(kind, name, value)
+
+    @tool
+    def vixl_template_create(path: str, name: str, variables: dict | None = None) -> dict:
+        """Create and activate an editable document from a named template without overwriting files."""
+        from .resources import create_template
+
+        with session._mutex:
+            destination = session.resolve(path)
+            require(
+                destination.suffix.lower() == ".vixl" and destination.parent.is_dir(),
+                "Use a .vixl path in an existing workspace directory",
+            )
+            with FileLock(str(destination) + ".lock", timeout=10, is_singleton=True):
+                require(not destination.exists(), "Destination already exists")
+                project = create_template(name, variables, limits=session.limits)
+                project.save(destination)
+                return session.open(destination)
+
+    @tool
+    def vixl_import_font(path: str, name: str, document: Document = None) -> dict:
+        """Import a workspace TTF/OTF font; use its registered name in vixl_text_add."""
+        from .fonts import import_font
+
+        with session.project(write=True, document=document) as project:
+            return import_font(project, session.resolve(path), name)
+
+    @tool
+    def vixl_text_add(
+        text: str,
+        name: str = "text",
+        font: str | None = None,
+        size: Annotated[int, Field(ge=1, le=4096)] = 48,
+        color: str = "white",
+        x: float = 0,
+        y: float = 0,
+        document: Document = None,
+    ) -> dict:
+        """Add editable text with the bundled font or a previously imported registered font name."""
+        with session.project(write=True, document=document) as project:
+            op = {"type": "text", "text": text, "name": name, "size": size, "color": color, "x": x, "y": y}
+            if font:
+                require(font in project.state.get("fonts", {}), "Import/register this font first")
+                op["font"] = project.state["fonts"][font]
+            return project.apply(op, detail="compact")
+
+    @tool
+    def vixl_models_list(
+        provider: str | None = None, capability: str | None = None, refresh: bool = False
+    ) -> dict:
+        """Discover authenticated model IDs and supported capabilities; keys stay in server environment variables."""
+        from .models import configured, DEFAULTS, CAPABILITIES, refresh as refresh_models
+
+        require(capability is None or capability in CAPABILITIES, "Unknown model capability")
+        settings = configured()
+        names = [provider] if provider else list(settings)
+        result = []
+        for name in names:
+            config = settings.get(name, DEFAULTS.get(name))
+            require(config is not None, "Unknown provider")
+            models = refresh_models(name) if refresh or "models" not in config else config["models"]
+            result.extend(
+                {"provider": name, **item}
+                for item in models
+                if not capability or capability in item.get("capabilities", [])
+            )
+        return {"models": result}
+
+    @tool
     def vixl_workspace_list(
         directory: str = ".",
         offset: Annotated[int, Field(ge=0)] = 0,
@@ -371,7 +463,9 @@ def build_server(session, *, schema="full", planner=False):
         from .schema import _properties
         from .render import EFFECTS
 
-        require(isinstance(types, list) and 0 < len(types) <= 20, "Request 1–20 operation types", field="types")
+        require(
+            isinstance(types, list) and 0 < len(types) <= 20, "Request 1–20 operation types", field="types"
+        )
         variants = {
             v["properties"]["type"]["const"]: v
             for v in operation_schema()["properties"]["operations"]["items"]["oneOf"]
@@ -415,7 +509,9 @@ def build_server(session, *, schema="full", planner=False):
         """Return an aspect-preserving PNG capped in dimensions and bytes, rendered at preview resolution.
         region zooms into part of the canvas and may enlarge it up to 8x for detail checks."""
         return Image(
-            data=preview(session, variables, max_width, max_height, max_bytes, artboard, comp, region, document),
+            data=preview(
+                session, variables, max_width, max_height, max_bytes, artboard, comp, region, document
+            ),
             format="png",
         )
 
@@ -434,7 +530,9 @@ def build_server(session, *, schema="full", planner=False):
         from .checks import compare
 
         with session.project(document=document) as project:
-            image, summary = compare(project, before, after, max_width=max_width, max_height=max_height, mode=mode)
+            image, summary = compare(
+                project, before, after, max_width=max_width, max_height=max_height, mode=mode
+            )
         return [compact_json(summary), Image(data=encode_png(image, 2_097_152), format="png")]
 
     @tool
@@ -502,7 +600,7 @@ def build_server(session, *, schema="full", planner=False):
         comp: str | None = None,
         document: Document = None,
     ) -> dict:
-        """Export to a workspace file, format from extension (PNG/JPEG/WEBP/TIFF/AVIF), full size by
+        """Export to a workspace file, format from extension (PNG/JPEG/WEBP/TIFF/AVIF/SVG), full size by
         default. Returns file metadata, never image bytes."""
         return export_file(
             session,
@@ -699,7 +797,13 @@ def build_server(session, *, schema="full", planner=False):
     ) -> dict:
         """Fill the current selection using a configured provider, preserving pixels outside it."""
         return typed_ai(
-            session, "ai", ["content-aware-fill"], document=document, prompt=prompt, name=name, provider=provider
+            session,
+            "ai",
+            ["content-aware-fill"],
+            document=document,
+            prompt=prompt,
+            name=name,
+            provider=provider,
         )
 
     @tool
@@ -762,7 +866,13 @@ def build_server(session, *, schema="full", planner=False):
     ) -> dict:
         """Regenerate a generated layer using its saved settings, preserving its stable ID."""
         return typed_ai(
-            session, "ai", ["regenerate", layer], document=document, prompt=prompt, seed=seed, provider=provider
+            session,
+            "ai",
+            ["regenerate", layer],
+            document=document,
+            prompt=prompt,
+            seed=seed,
+            provider=provider,
         )
 
     @tool

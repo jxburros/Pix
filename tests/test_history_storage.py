@@ -183,5 +183,15 @@ def test_saving_preserves_existing_file_permissions(tmp_path):
     p.save()
     assert os.stat(path).st_mode & 0o777 == 0o640
     fresh = Project(8, 8)
-    fresh.save(tmp_path / "fresh.vixl")
-    assert os.stat(tmp_path / "fresh.vixl").st_mode & 0o044  # not forced private by mkstemp
+    previous_umask = os.umask(0o022)
+    try:
+        fresh.save(tmp_path / "fresh.vixl")
+    finally:
+        os.umask(previous_umask)
+    assert os.stat(tmp_path / "fresh.vixl").st_mode & 0o777 == 0o644
+    previous_umask = os.umask(0o077)
+    try:
+        fresh.save(tmp_path / "private.vixl")
+    finally:
+        os.umask(previous_umask)
+    assert os.stat(tmp_path / "private.vixl").st_mode & 0o777 == 0o600

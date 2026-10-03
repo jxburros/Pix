@@ -1,5 +1,7 @@
 # Python, REST, MCP, and extension interfaces
 
+Vixl is a headless application designed for autonomous AI agents; humans can use the same interfaces.
+
 See [spacing checks and pixel animation](pixel-animation-spacing.md) for the 0.9.0 tools and API examples.
 
 See [design tools and template production](design-tools.md) for groups, clipping, shapes, styles, artboards, CSV rendering, measurements, and the other design operations.
@@ -159,3 +161,9 @@ my_provider = "my_package:Provider"
 A filter receives `(rgba_image_copy, effect_dict)` and returns a same-size Pillow RGBA image. Provider classes accept `(provider_name, configuration)` and expose `invoke(capability, request) -> dict`; see the HTTP gateway contract for request/result shapes. The provider instance exposes `.name`.
 
 Enable plugins explicitly with `vixl --plugins ...` or `vixl.plugins.enable_plugins()` in Python. Plugins are trusted Python code with the user's process privileges; they are **not sandboxed**. No plugin is imported from a project archive. Codec, layout, validator, and asset-source entry-point categories remain future work; built-in Pillow codecs and the current validator/layout engine cover those functions today.
+
+## New agent resources (0.11)
+
+MCP adds `vixl_resources_list`, `vixl_resource_get`, `vixl_resource_add`, `vixl_template_create`, `vixl_import_font`, `vixl_text_add`, and `vixl_models_list`. Resource discovery needs no open document. Font paths and document destinations remain workspace scoped. `vixl_export_file` accepts `.svg`; `vixl_text_add` permits registered font names while generic service operations continue to reject filesystem font paths.
+
+REST adds GET `/resources/{kind}`, GET/POST `/resources/{kind}/{name}` (POST body `{"value":...}`), POST `/fonts?name=brand` with raw TTF/OTF bytes (16 MiB maximum), and POST `/export` with options such as `{"format":"SVG"}`. Export returns bytes and accepts no destination path. Python exposes the matching `vixl.resources` and `vixl.fonts` helpers. [Detailed examples and boundaries](agent-resources.md).

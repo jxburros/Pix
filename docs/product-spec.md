@@ -1,11 +1,13 @@
 # Vixl
+
+Vixl is a headless application designed for autonomous AI agents; humans can use the same interfaces. This supplied specification is historical design context; [coverage](coverage.md) describes implemented behavior.
 ## Programmable, Scriptable, AI-Native Image Editing Engine
 
 **Status:** Concept / Product Specification
 **Working Name:** Vixl
 **Primary Interface:** Command Line
 **Secondary Interfaces:** Interactive shell, API, MCP/agent interface, future TUI/GUI
-**Core Philosophy:** A deterministic image-document engine designed equally for humans, scripts, and AI agents.
+**Core Philosophy:** A deterministic image-document engine designed primarily for autonomous AI agents, also usable by humans and scripts.
 
 ---
 
@@ -2710,6 +2712,6 @@ That description is useful for initially explaining the concept, but undersells 
 
 A more accurate identity is:
 
-> **A programmable image-document engine built for humans, scripts, and AI agents.**
+> **A programmable image-document engine built for autonomous AI agents, also usable by humans and scripts.**
 
 The CLI is simply its first—and potentially most important—interface.

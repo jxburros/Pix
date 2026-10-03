@@ -1,5 +1,7 @@
 # AI features (external providers)
 
+Vixl is headless and designed for autonomous AI agents; humans can use the same interfaces. See [new resources and SVG](resources.md) for 0.11 additions.
+
 Vixl ships adapters, not models. Every AI command calls a provider **you** configured; there is no
 offline or placeholder fallback, and unsupported capabilities fail explicitly. If a call fails with
 a provider/configuration error, report it to the user instead of looping.
@@ -82,3 +84,7 @@ Behavior worth knowing:
   agent you can usually write the operations yourself — prefer that over `plan` unless asked.
 - Providers receive the rendered canvas, selection and document metadata. Don't call AI tools on
   sensitive images without the user's consent; calls may incur provider charges.
+
+## Model discovery (0.11)
+
+Use `vixl providers add NAME --type openai|anthropic|mistral|meta|gemini --key-env ENV` to fetch the account catalog before saving. `vixl models --refresh` and `vixl_models_list` return available IDs and capability labels. `--provider` pins a provider and `--model` pins an exact model. Otherwise Vixl routes to a matching configured model, using vendor metadata or documented model-family mappings. Native Anthropic messages and Gemini content/image adapters join OpenAI-compatible Mistral/Meta chat. Midjourney needs an authorized HTTP gateway exposing `/models` and the Vixl capability routes. Keys remain environment references; no credentials enter projects. Live provider size/mask/seed limits apply, and mocked CI does not verify paid-service access or output quality.

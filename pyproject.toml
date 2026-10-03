@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "vixl-engine"
 dynamic = ["version"]
-description = "A programmable image-document engine for humans, scripts, and AI agents"
+description = "A headless image-document engine designed for autonomous AI agents"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = ["Pillow>=11.3,<13", "numpy>=2.0,<3", "httpx>=0.28,<1", "filelock>=3.16,<4", "jsonschema>=4.23,<5"]

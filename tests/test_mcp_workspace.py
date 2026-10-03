@@ -44,7 +44,7 @@ def test_operation_schema_is_in_tools_list(tmp_path):
         assert "args" not in tools["vixl_ai_generate"].inputSchema["properties"]
         assert tools["vixl_ai_generate"].inputSchema["properties"]["seed"]["type"] == "integer"
         # Design and pixel/animation operations extend the catalog; shared constraints keep the inline schema bounded.
-        assert len(json.dumps(schema)) < 18000
+        assert len(json.dumps(schema)) < 20000
 
     asyncio.run(run())
 

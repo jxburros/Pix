@@ -1,5 +1,7 @@
 # MCP, REST and Python interfaces
 
+Vixl is headless and designed for autonomous AI agents; humans can use the same interfaces. See [new resources and SVG](resources.md) for 0.11 additions.
+
 ## MCP server
 
 Start: `vixl mcp --workspace DIR` (stdio; requires the `mcp` extra or the Windows installer).
