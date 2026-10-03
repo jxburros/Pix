@@ -70,7 +70,7 @@ class Project:
             return next(x for x in state["layers"] if x["id"] == ident)
         return {
             **state,
-            "version": "0.6.0",
+            "version": "0.7.0",
             "head": self.head,
             "branch": self.current_branch,
             "history_count": len(self.nodes),
@@ -216,7 +216,7 @@ class Project:
     def manifest(self):
         return {
             "format_version": 1,
-            "pix_version": "0.6.0",
+            "pix_version": "0.7.0",
             "state": self.state,
             "nodes": self.nodes,
             "head": self.head,
