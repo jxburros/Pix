@@ -44,7 +44,33 @@ async def verify(executable, workspace):
             await call("pix_document_create", path="second.pix", width=16, height=16)
             await call("pix_document_open", path="new.pix")
             await call("pix_document_inspect", target="photo")
+            await call("pix_document_create", path="sprite.pix", width=4, height=4)
+            await call(
+                "pix_operations_apply",
+                operations=[
+                    {"type": "pixel-art", "name": "sprite", "width": 4, "height": 4},
+                    {"type": "pixel-draw", "x": 0, "y": 0, "color": "#"},
+                    {"type": "frame-save", "name": "idle", "duration": 100},
+                    {"type": "pixel-draw", "x": 1, "y": 0, "color": "#"},
+                    {"type": "frame-save", "name": "spark", "duration": 200},
+                ],
+            )
+            await call("pix_pixels_inspect", target="sprite")
+            await call("pix_animation_preview", name="idle")
+            await call("pix_export_animation", path="sprite.gif", format="gif", scale=2)
+            await call("pix_export_animation", path="sprite.png", format="sheet", scale=2)
+            await call(
+                "pix_operations_apply",
+                operations=[
+                    {"type": "solid", "name": "a", "width": 1, "height": 1},
+                    {"type": "solid", "name": "b", "width": 1, "height": 1, "y": 2},
+                ],
+            )
+            await call("pix_measure_spacing", targets=["a", "b"], expected=1, tolerance=0)
     assert Image.open(workspace / "exported.png").size == (2400, 1600)
+    assert Image.open(workspace / "sprite.gif").n_frames == 2
+    assert Image.open(workspace / "sprite.png").size == (16, 8)
+    assert json.loads((workspace / "sprite.json").read_text())["frames"][1]["duration"] == 200
     print(
         "Installed MCP schemas, document lifecycle, path import, bounded preview and full-size export passed."
     )

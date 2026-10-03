@@ -1,6 +1,8 @@
 """Canonical operation dispatcher. CLI, scripts, REST and MCP use this same boundary."""
 
 from .design_schema import TYPES as DESIGN_TYPES
+from .pixel import PIXEL_TYPES
+from .animation import ANIMATION_TYPES
 
 from copy import deepcopy
 import hashlib
@@ -33,7 +35,7 @@ ALIASES = {
     "make_selection": "select",
 }
 
-OPERATION_TYPES = list(DESIGN_TYPES) + [
+OPERATION_TYPES = list(DESIGN_TYPES + PIXEL_TYPES + ANIMATION_TYPES) + [
     "add",
     "solid",
     "gradient",
@@ -196,6 +198,16 @@ def execute(project, op):
     kind = ALIASES.get(kind, kind)
     require(isinstance(kind, str), "Operation requires a type")
     target = op.get("target", op.get("layer"))
+    if kind in PIXEL_TYPES:
+        from .pixel import execute_pixel
+
+        execute_pixel(project, op)
+        return
+    if kind in ANIMATION_TYPES:
+        from .animation import execute_animation
+
+        execute_animation(project, op)
+        return
     from .design import execute_design, resolve_color
 
     if kind in DESIGN_TYPES:

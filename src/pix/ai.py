@@ -1,6 +1,8 @@
 """Provider-based vision, planning and generation. No model credentials enter project files."""
 
 from .design_schema import TYPES as DESIGN_TYPES
+from .pixel import PIXEL_TYPES
+from .animation import ANIMATION_TYPES
 
 from copy import deepcopy
 import base64
@@ -304,7 +306,7 @@ def provider(name=None):
     return cls(name, settings)
 
 
-SAFE_PLAN = (set(DESIGN_TYPES) - {"frame", "replace-contents"}) | {
+SAFE_PLAN = (set(DESIGN_TYPES + PIXEL_TYPES + ANIMATION_TYPES) - {"frame", "replace-contents"}) | {
     "text",
     "solid",
     "gradient",

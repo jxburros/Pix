@@ -255,6 +255,7 @@ def build_server(session):
         variables: dict | None = None,
         background: str = "white",
         overwrite: bool = False,
+        sampling: Literal["smooth", "nearest"] = "smooth",
         artboard: str | None = None,
         comp: str | None = None,
     ) -> dict:
@@ -270,9 +271,77 @@ def build_server(session):
             profile=profile,
             variables=variables,
             background=background,
+            sampling=sampling,
             artboard=artboard,
             comp=comp,
         )
+
+    @server.tool()
+    def pix_measure_spacing(
+        targets: list[str] | None = None,
+        axis: Literal["horizontal", "vertical"] = "vertical",
+        around: str | None = None,
+        before: str | None = None,
+        after: str | None = None,
+        expected: float | None = None,
+        tolerance: Annotated[float, Field(ge=0)] = 1,
+        artboard: str | None = None,
+        comp: str | None = None,
+    ) -> dict:
+        """Check intended equal gaps or balance before/after an object. Opt-in; no layout guessing.
+        Returns exact geometric gaps, overlap, spread and pass/fail within the supplied tolerance.
+        """
+        return session.measure_spacing(
+            targets=targets,
+            axis=axis,
+            around=around,
+            before=before,
+            after=after,
+            expected=expected,
+            tolerance=tolerance,
+            artboard=artboard,
+            comp=comp,
+        )
+
+    @server.tool()
+    def pix_pixels_inspect(target: str | None = None) -> dict:
+        """Inspect a pixel layer as compact character rows and palette colors, without image bytes."""
+        with session.project() as project:
+            return project.inspect_pixels(target)
+
+    @server.tool()
+    def pix_animation_inspect() -> dict:
+        """List saved animation frame names, sizes and durations without full snapshots."""
+        with session.project() as project:
+            return project.inspect_animation()
+
+    @server.tool()
+    def pix_animation_preview(name: str, scale: Annotated[int, Field(ge=1, le=8)] = 1) -> Image:
+        """Preview a saved frame with crisp integer scaling (default: native pixel size)."""
+        with session.project() as project:
+            image = project.render_frame(name, scale)
+            stream = BytesIO()
+            image.save(stream, format="PNG")
+            require(len(stream.getvalue()) <= 4_194_304, "Frame preview exceeds 4 MiB; use a smaller scale")
+            return Image(data=stream.getvalue(), format="png")
+
+    @server.tool()
+    def pix_export_animation(
+        path: str,
+        format: Literal["gif", "apng", "sheet"] = "gif",
+        scale: Annotated[int, Field(ge=1, le=32)] = 1,
+        columns: Positive | None = None,
+    ) -> dict:
+        """Write saved frames as GIF, APNG or PNG sprite sheet plus JSON timing metadata in the workspace.
+        Never overwrites files. Scaling uses nearest-neighbor sampling; sheets preserve every named frame.
+        """
+        with session.project() as project:
+            destination = session.resolve(path)
+            result = project.export_animation(destination, format=format, scale=scale, columns=columns)
+            result["output"] = str(destination.relative_to(session.workspace))
+            if "metadata" in result:
+                result["metadata"] = str(destination.with_suffix(".json").relative_to(session.workspace))
+            return result
 
     @server.tool()
     def pix_measure(

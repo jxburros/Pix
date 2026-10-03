@@ -21,6 +21,15 @@ def compact_changes(before, after):
     ):
         if before.get(key) != after.get(key):
             changes[key] = {"before": before.get(key), "after": after.get(key)}
+    if before.get("animation") != after.get("animation"):
+        previous = {f["name"]: f for f in before.get("animation", {}).get("frames", [])}
+        current = {f["name"]: f for f in after.get("animation", {}).get("frames", [])}
+        changes["animation"] = {
+            "loop": after.get("animation", {}).get("loop", 0),
+            "frames": [{"name": name, "duration": f["duration"]} for name, f in current.items()],
+            "changed": [name for name, f in current.items() if previous.get(name) != f],
+            "removed": [name for name in previous if name not in current],
+        }
     old = {layer["id"]: layer for layer in before["layers"]}
     new = {layer["id"]: layer for layer in after["layers"]}
     layers = {}
