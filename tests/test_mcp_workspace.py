@@ -43,7 +43,8 @@ def test_operation_schema_is_in_tools_list(tmp_path):
         assert "pix_ai" not in tools
         assert "args" not in tools["pix_ai_generate"].inputSchema["properties"]
         assert tools["pix_ai_generate"].inputSchema["properties"]["seed"]["anyOf"][0]["type"] == "integer"
-        assert len(json.dumps(schema)) < 14000
+        # Design operations extend the catalog; shared constraints keep the inline schema bounded.
+        assert len(json.dumps(schema)) < 16000
 
     asyncio.run(run())
 

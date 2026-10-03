@@ -33,32 +33,42 @@ ops = [
     },
     {"type": "constrain", "constraints": {"right": "canvas.right-64", "top": "canvas.top+62"}},
     {
-        "type": "gradient",
+        "type": "shape",
+        "shape": "ellipse",
         "name": "orb",
         "width": 640,
         "height": 640,
-        "start": "#e8885c",
-        "end": "#4853a4",
+        "fill": "#e8885c",
         "x": 564,
         "y": 165,
     },
-    {"type": "select", "shape": "ellipse", "x": 564, "y": 165, "width": 640, "height": 640},
-    {"type": "mask", "action": "from-selection"},
-    {"type": "select", "shape": "none"},
+    {
+        "type": "layer-style",
+        "target": "orb",
+        "name": "gradient-overlay",
+        "settings": {
+            "stops": [
+                {"offset": 0, "color": "#e8885c"},
+                {"offset": 0.5, "color": "#b36881"},
+                {"offset": 1, "color": "#4853a4"},
+            ]
+        },
+    },
+    {
+        "type": "shape",
+        "shape": "rectangle",
+        "name": "stripe",
+        "width": 700,
+        "height": 6,
+        "fill": "#152235",
+        "x": 534,
+        "y": 190,
+    },
+    {"type": "repeat", "target": "stripe", "count": 16, "dy": 37, "dh": 1},
+    {"type": "group", "name": "stripes", "targets": ["stripe"]},
+    {"type": "clip", "target": "stripes", "base": "orb"},
 ]
-# Small gaps create a cut-paper sphere without flattening any source layers.
-for index in range(16):
-    ops.append(
-        {
-            "type": "solid",
-            "name": f"stripe-{index:02}",
-            "width": 700,
-            "height": 6 + index,
-            "color": "#152235",
-            "x": 534,
-            "y": 190 + index * 37,
-        }
-    )
+# One editable repeated stripe, clipped to the live sun silhouette.
 ops += [
     {
         "type": "text",

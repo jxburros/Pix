@@ -3,9 +3,24 @@
 
 def compact_changes(before, after):
     changes = {}
-    for key in ("canvas", "selection", "variables", "active_layer", "presets"):
-        if before[key] != after[key]:
-            changes[key] = {"before": before[key], "after": after[key]}
+    for key in (
+        "canvas",
+        "selection",
+        "variables",
+        "active_layer",
+        "presets",
+        "swatches",
+        "character_styles",
+        "paragraph_styles",
+        "artboards",
+        "luts",
+        "comps",
+        "guides",
+        "grids",
+        "symbols",
+    ):
+        if before.get(key) != after.get(key):
+            changes[key] = {"before": before.get(key), "after": after.get(key)}
     old = {layer["id"]: layer for layer in before["layers"]}
     new = {layer["id"]: layer for layer in after["layers"]}
     layers = {}

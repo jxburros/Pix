@@ -1,5 +1,7 @@
 """Provider-based vision, planning and generation. No model credentials enter project files."""
 
+from .design_schema import TYPES as DESIGN_TYPES
+
 from copy import deepcopy
 import base64
 import json
@@ -302,7 +304,7 @@ def provider(name=None):
     return cls(name, settings)
 
 
-SAFE_PLAN = {
+SAFE_PLAN = (set(DESIGN_TYPES) - {"frame", "replace-contents"}) | {
     "text",
     "solid",
     "gradient",
@@ -366,7 +368,8 @@ def plan(project, prompt, backend, apply=False, *, detail="full"):
         if operation.get("type") == "effect":
             require(operation.get("name") in EFFECTS, "AI plans cannot invoke plugins")
         require(
-            not any(k in operation for k in ("path", "linked", "font")),
+            not any(k in operation for k in ("linked", "font"))
+            and ("path" not in operation or operation.get("type") == "text-layout"),
             "AI plans cannot request files",
             "unsafe_plan",
         )
@@ -463,6 +466,32 @@ def ai_execute(project, cmd, a):
             project.layer(a.words[1] if len(a.words) > 1 else None).get("provenance", {}).get("provider")
         )
     backend = provider(provider_name)
+    if cmd == "ai" and a.words and a.words[0] in ("remove", "content-aware-fill"):
+        require(project.state["selection"], "Remove and Content-Aware Fill require a selection")
+        candidate = project.clone()
+        c = candidate.state["canvas"]
+        request = {
+            "width": c["width"],
+            "height": c["height"],
+            "mode": "inpaint",
+            "prompt": a.prompt
+            or (
+                "Remove the selected object and reconstruct the background."
+                if a.words[0] == "remove"
+                else "Fill the selection to match its surroundings."
+            ),
+            "strength": a.strength,
+            "seed": a.seed,
+            "model": a.model,
+            "source_asset": add_image(candidate, candidate.render()),
+            "mask_asset": candidate.state["selection"],
+        }
+        result = generate(candidate, request, backend, name=a.name)
+        project.__dict__.update(candidate.__dict__)
+        return result, True
+    if cmd == "ai" and a.words and a.words[0] == "select-subject":
+        cmd = "select"
+        a.words = ["object", a.prompt or "main subject"]
     if cmd == "ask":
         prompt = a.prompt or " ".join(a.words)
         require(prompt, "Provide a natural-language request")

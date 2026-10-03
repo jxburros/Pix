@@ -39,6 +39,9 @@ EFFECTS = (
     "noise",
     "grain",
     "vignette",
+    "auto-tone",
+    "auto-color",
+    "auto-contrast",
 )
 CANVAS_PRESETS = {
     "instagram-square": (1080, 1080),
@@ -108,6 +111,10 @@ def text_metrics(project, layer, variables=None):
 
 def transformed_size(layer):
     w, h = layer["width"], layer["height"]
+    if layer.get("repeat"):
+        from .design_render import repeat_bounds
+
+        w, h = repeat_bounds(layer)
     if layer.get("rotation", 0) % 360:
         # Pillow determines the exact expanded pixel bounds, without allocating the source raster.
         angle = math.radians(layer["rotation"] % 360)
@@ -120,12 +127,58 @@ def transformed_size(layer):
 
 
 def resolved_layers(project, variables=None):
+    from .design import resolve_color
+
     variables = {**project.state["variables"], **(variables or {})}
     layers = deepcopy(project.state["layers"])
-    for layer in layers:
-        for key in ("text", "color", "fill", "start", "end", "asset"):
+    originals = {item["id"]: item for item in layers}
+    for index, layer in enumerate(layers):
+        if layer["type"] == "symbol":
+            master = originals[project.state["symbols"][layer["symbol"]]]
+            instance = deepcopy(master)
+            for key in (
+                "id",
+                "name",
+                "x",
+                "y",
+                "width",
+                "height",
+                "rotation",
+                "flip_x",
+                "flip_y",
+                "opacity",
+                "blend",
+                "visible",
+                "constraints",
+                "parent",
+                "clip",
+            ):
+                if key in layer:
+                    instance[key] = layer[key]
+                elif key in ("parent", "clip"):
+                    instance.pop(key, None)
+            instance["effects"] += layer["effects"]
+            instance["styles"] = {**instance.get("styles", {}), **layer.get("styles", {})}
+            instance["auto_size"] = False
+            layer = layers[index] = instance
+        for category in ("character", "paragraph"):
+            if layer.get(category + "_style"):
+                layer.update(deepcopy(project.state[category + "_styles"][layer[category + "_style"]]))
+        for key in ("text", "asset"):
             if key in layer:
                 layer[key] = substitute(layer[key], variables)
+        if layer.get("asset_variable"):
+            name = layer["asset_variable"]
+            require(name in variables, f"Undefined image variable: {name}", "missing_variable")
+            layer["asset"] = str(variables[name])
+            require(
+                layer["asset"] in project.assets,
+                "Image variables must reference embedded assets",
+                "missing_asset",
+            )
+        for key in ("color", "fill", "start", "end", "stroke_color", "stroke"):
+            if key in layer:
+                layer[key] = resolve_color(layer[key], project.state, variables)
         if layer["type"] == "text" and layer.get("auto_size", True):
             layer["width"], layer["height"], _ = text_metrics(project, layer, variables)
         project.limits.size(layer["width"], layer["height"])
@@ -147,6 +200,15 @@ def resolve_layout(project, variables=None, layers=None):
         )
         require(match, f"Invalid constraint expression: {expression}")
         ref, anchor, offset = match.groups()
+        if ref.startswith("guide:"):
+            guide = project.state.get("guides", {}).get(ref[6:])
+            require(guide is not None, f"Unknown guide: {ref}")
+            require(
+                anchor
+                in (("left", "right", "center-x") if guide["axis"] == "x" else ("top", "bottom", "center-y")),
+                "Guide axis does not match constraint",
+            )
+            return guide["position"] + float(offset or 0)
         b = bounds["canvas"] if ref == "canvas" else solve(ref)
         x, y, w, h = b
         return {
@@ -170,7 +232,14 @@ def resolve_layout(project, variables=None, layers=None):
         project.limits.size(w, h)
         x, y = layer["x"], layer["y"]
         for anchor, expression in layer.get("constraints", {}).items():
-            val = edge(expression)
+            if isinstance(expression, str) and expression.startswith("canvas.") and layer.get("parent"):
+                parent = index[layer["parent"]]
+                old_canvas = bounds["canvas"]
+                bounds["canvas"] = (0, 0, parent["content_width"], parent["content_height"])
+                val = edge(expression)
+                bounds["canvas"] = old_canvas
+            else:
+                val = edge(expression)
             if anchor == "left":
                 x = val
             elif anchor == "right":
@@ -199,7 +268,22 @@ def apply_effect(image, effect):
     value = effect.get("amount", 0)
     alpha = image.getchannel("A")
     rgb = image.convert("RGB")
-    if name in ("brightness", "contrast", "saturation", "sharpen"):
+    if name in ("auto-tone", "auto-color", "auto-contrast"):
+        a = np.asarray(rgb, dtype=np.float32)
+        visible = np.asarray(alpha) > 0
+        if visible.any():
+            samples = a[visible]
+            if name == "auto-contrast":
+                low, high = np.percentile(samples, (0.5, 99.5))
+            else:
+                low, high = np.percentile(samples, (0.5, 99.5), axis=0)
+            span = high - low
+            a = np.where(span > 0, (a - low) * 255 / np.maximum(span, 1), a)
+            if name == "auto-color":
+                means = a[visible].mean(axis=0)
+                a *= np.mean(means) / np.maximum(means, 1)
+            rgb = Image.fromarray(np.uint8(np.clip(a, 0, 255) + 0.5))
+    elif name in ("brightness", "contrast", "saturation", "sharpen"):
         enhancer = {
             "brightness": ImageEnhance.Brightness,
             "contrast": ImageEnhance.Contrast,
@@ -263,10 +347,19 @@ def apply_effect(image, effect):
 def layer_image(project, layer, bounds):
     key = hashlib.sha256(json.dumps([layer, bounds], sort_keys=True).encode()).hexdigest()
     linked = layer.get("linked")
-    if not linked and key in project._cache:
+    cacheable = not linked and not layer.get("lookup") and layer["type"] not in ("group", "pathfinder")
+    if cacheable and key in project._cache:
         return project._cache[key].copy()
     kind = layer["type"]
-    if kind == "raster":
+    if layer.get("repeat"):
+        from .design_render import repeat_image
+
+        image = repeat_image(project, layer)
+    elif kind in ("shape", "group", "frame", "pathfinder"):
+        from .design_render import special_image
+
+        image = special_image(project, layer)
+    elif kind == "raster":
         if linked:
             require(
                 project.allow_linked,
@@ -282,35 +375,19 @@ def layer_image(project, layer, bounds):
         if layer.get("crop"):
             image = image.crop(tuple(layer["crop"]))
     elif kind == "text":
-        width, height, box = text_metrics(project, layer)
-        project.limits.size(width, height)
-        image = Image.new("RGBA", (width, height))
-        ImageDraw.Draw(image).multiline_text(
-            (-box[0], -box[1]),
-            layer["text"],
-            font=font_for(project, layer),
-            fill=color(layer.get("color", "white")),
-            spacing=layer.get("spacing", 4),
-            align=layer.get("align", "left"),
-            stroke_width=layer.get("stroke_width", 0),
-            stroke_fill=color(layer.get("stroke_color", "black")),
-        )
+        from .design_render import text_image
+
+        image = text_image(project, layer)
     elif kind == "solid":
         image = Image.new("RGBA", (layer["width"], layer["height"]), color(layer["fill"]))
     elif kind == "gradient":
-        w, h = layer["width"], layer["height"]
-        start, end = np.array(color(layer["start"])), np.array(color(layer["end"]))
-        ramp = np.linspace(0, 1, w if layer.get("direction") == "horizontal" else h)
-        pixels = np.uint8(start + ramp[:, None] * (end - start))
-        array = (
-            np.tile(pixels[None, :, :], (h, 1, 1))
-            if layer.get("direction") == "horizontal"
-            else np.tile(pixels[:, None, :], (1, w, 1))
-        )
-        image = Image.fromarray(array)
+        from .design_render import gradient_image
+
+        image = gradient_image(project, layer, (layer["width"], layer["height"]))
     else:
         raise PixError("invalid_layer", f"Unsupported layer type: {kind}")
-    image = image.resize((layer["width"], layer["height"]), Image.Resampling.LANCZOS)
+    if not layer.get("repeat"):
+        image = image.resize((layer["width"], layer["height"]), Image.Resampling.LANCZOS)
     if layer.get("flip_x"):
         image = ImageOps.mirror(image)
     if layer.get("flip_y"):
@@ -334,6 +411,10 @@ def layer_image(project, layer, bounds):
             image = Image.composite(changed, image, mask)
         else:
             image = changed
+    if layer.get("lookup"):
+        from .design_render import apply_lookup
+
+        image = apply_lookup(project, image, layer["lookup"])
     mask = layer.get("mask")
     if mask and mask.get("enabled", True):
         m = project.image(mask["asset"], "L").resize(image.size, Image.Resampling.LANCZOS)
@@ -342,7 +423,7 @@ def layer_image(project, layer, bounds):
     if layer["opacity"] != 1:
         image.putalpha(image.getchannel("A").point(lambda a: round(a * layer["opacity"])))
     # Cache is bounded in bytes as well as entry count.
-    if not linked and image.width * image.height * 4 < 32 * 1024 * 1024:
+    if cacheable and image.width * image.height * 4 < 32 * 1024 * 1024:
         while project._cache and (
             len(project._cache) >= 16
             or sum(i.width * i.height * 4 for i in project._cache.values()) + image.width * image.height * 4
@@ -381,33 +462,93 @@ def composite(bottom, top, blend):
     return Image.fromarray(np.uint8(np.clip(np.concatenate((rgb, alpha), axis=2), 0, 1) * 255 + 0.5))
 
 
-def render(project, variables=None):
+def render_layers(project, parent=None, size=None, background="transparent"):
+    from .design_render import styled_image, apply_lookup
+
+    layers = resolved_layers(project)
+    bounds = resolve_layout(project, layers=layers)
     c = project.state["canvas"]
-    project.limits.size(c["width"], c["height"])
-    layers = resolved_layers(project, variables)
-    bounds = resolve_layout(project, variables, layers)
-    image = Image.new(
-        "RGBA",
-        (c["width"], c["height"]),
-        color(substitute(c["background"], {**project.state["variables"], **(variables or {})})),
-    )
+    size = size or (c["width"], c["height"])
+    project.limits.size(*size)
+    image = Image.new("RGBA", size, color(background))
+    index = {item["id"]: item for item in layers}
+    visiting = set()
+
+    def surface(layer):
+        ident = layer["id"]
+        require(ident not in visiting, "Clipping contains a cycle")
+        visiting.add(ident)
+        tile = Image.new("RGBA", size)
+        if layer["visible"]:
+            b = bounds[ident]
+            # Group styles and opacity apply once to the flattened group.
+            working = {**layer, "opacity": 1}
+            source = layer_image(project, working, b)
+            tile.alpha_composite(source, (b[0], b[1]))
+            if layer.get("styles"):
+                tile = styled_image(project, tile, layer["styles"])
+            if layer.get("clip"):
+                from PIL import ImageChops
+
+                tile.putalpha(
+                    ImageChops.multiply(tile.getchannel("A"), surface(index[layer["clip"]]).getchannel("A"))
+                )
+            if layer["opacity"] != 1:
+                tile.putalpha(tile.getchannel("A").point(lambda a: round(a * layer["opacity"])))
+        visiting.remove(ident)
+        return tile
+
     for layer in layers:
-        if not layer["visible"]:
+        if layer.get("parent") != parent or not layer["visible"]:
             continue
-        source = layer_image(project, layer, bounds[layer["id"]])
-        x, y, _, _ = bounds[layer["id"]]
-        left, top = max(0, x), max(0, y)
-        right, bottom = min(image.width, x + source.width), min(image.height, y + source.height)
-        if right <= left or bottom <= top:
-            continue
-        box = (left, top, right, bottom)
-        foreground = source.crop((left - x, top - y, right - x, bottom - y))
-        image.paste(composite(image.crop(box), foreground, layer["blend"]), (left, top))
+        if layer["type"] == "adjustment":
+            changed = image
+            for effect in layer["effects"]:
+                if effect.get("enabled", True):
+                    filtered = apply_effect(changed, effect)
+                    changed = (
+                        Image.composite(
+                            filtered, changed, project.image(effect["selection"], "L").resize(size)
+                        )
+                        if effect.get("selection")
+                        else filtered
+                    )
+            if layer.get("lookup"):
+                changed = apply_lookup(project, changed, layer["lookup"])
+            mask = Image.new("L", size, round(255 * layer["opacity"]))
+            if layer.get("mask") and layer["mask"].get("enabled", True):
+                from PIL import ImageChops
+
+                mask = ImageChops.multiply(mask, project.image(layer["mask"]["asset"], "L").resize(size))
+            image = Image.composite(composite(image, changed, layer["blend"]), image, mask)
+        else:
+            image = composite(image, surface(layer), layer["blend"])
     return image
 
 
+def render(project, variables=None, artboard=None, comp=None):
+    from .design_render import artboard_project
+
+    candidate = artboard_project(project, artboard, comp, variables)
+    from .design import resolve_color
+
+    return render_layers(
+        candidate, background=resolve_color(candidate.state["canvas"]["background"], candidate.state)
+    )
+
+
 def export(
-    project, path=None, *, quality=90, scale=1, profile=None, variables=None, format=None, background="white"
+    project,
+    path=None,
+    *,
+    quality=90,
+    scale=1,
+    profile=None,
+    variables=None,
+    format=None,
+    background="white",
+    artboard=None,
+    comp=None,
 ):
     require(path is None or Path(path).suffix.lower() != ".pix", "Cannot export over a Pix project")
     finite(scale, "scale", 0.01, 16)
@@ -416,7 +557,7 @@ def export(
     if profile:
         require(profile in EXPORT_PROFILES, f"Unknown export profile: {profile}")
         settings = deepcopy(EXPORT_PROFILES[profile])
-    image = render(project, variables)
+    image = render(project, variables, artboard, comp)
     size = settings.pop("size", None)
     if size:
         image = ImageOps.contain(image, size, Image.Resampling.LANCZOS)
