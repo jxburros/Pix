@@ -1,0 +1,25 @@
+{
+  "prompt": "Create thumbnail.vixl at 1280x720 for a YouTube video. Use a dark background, a large headline 'HOW I BUILT IT' (font size at least 80), a subtitle containing '48 hours', and a red badge (a shape with the word NEW on it) in the top-right quarter. Keep all content inside a 5% safe area and out of the bottom-right 15% x 15% corner where YouTube shows the timestamp. Text must be legible at 320 px wide and meet WCAG contrast. Export thumbnail.png at full size.",
+  "document": "thumbnail.vixl",
+  "checks": [
+    {"type": "canvas", "width": 1280, "height": 720},
+    {"type": "layer", "name": "headline", "match": {"type": "text", "text_contains": "HOW I BUILT IT", "min_size": 80}},
+    {"type": "layer", "name": "subtitle", "match": {"type": "text", "text_contains": "48 hours"}},
+    {"type": "layer", "name": "badge label", "match": {"type": "text", "text_contains": "NEW"}, "within": [640, 0, 640, 360]},
+    {"type": "layer", "name": "badge shape", "match": {"type": ["shape", "solid"]}, "within": [640, 0, 640, 360]},
+    {"type": "design", "name": "safe area, timestamp zone, contrast, legibility", "options": {"safe_area": "5%", "avoid": [["85%", "85%", "15%", "15%"]]}},
+    {"type": "file", "path": "thumbnail.png", "image_size": [1280, 720]}
+  ],
+  "reference": [
+    {"tool": "vixl_document_create", "arguments": {"path": "thumbnail.vixl", "width": 1280, "height": 720, "background": "#101820"}},
+    {"tool": "vixl_operations_apply", "arguments": {"operations": [
+      {"type": "text", "name": "headline", "text": "HOW I BUILT IT", "size": 110, "x": 64, "y": 260, "color": "white"},
+      {"type": "text", "name": "subtitle", "text": "Built in 48 hours", "size": 56, "x": 64, "y": 400, "color": "#ffb347"},
+      {"type": "shape", "shape": "rounded-rectangle", "name": "badge", "width": 180, "height": 80, "x": 1020, "y": 60, "fill": "#c62828"},
+      {"type": "text", "name": "badge-label", "text": "NEW", "size": 48, "color": "white"},
+      {"type": "constrain", "target": "badge-label", "constraints": {"center-x": "badge.center-x", "center-y": "badge.center-y"}}
+    ]}},
+    {"tool": "vixl_check", "arguments": {"safe_area": "5%", "avoid": [["85%", "85%", "15%", "15%"]]}},
+    {"tool": "vixl_export_file", "arguments": {"path": "thumbnail.png"}}
+  ]
+}
