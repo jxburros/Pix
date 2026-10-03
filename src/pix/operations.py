@@ -1,5 +1,7 @@
 """Canonical operation dispatcher. CLI, scripts, REST and MCP use this same boundary."""
 
+from .design_schema import TYPES as DESIGN_TYPES
+
 from copy import deepcopy
 import hashlib
 from pathlib import Path
@@ -19,7 +21,6 @@ from .render import (
     layer_image,
     resolve_layout,
     text_metrics,
-    substitute,
 )
 
 ALIASES = {
@@ -31,7 +32,8 @@ ALIASES = {
     "set_effect": "effect",
     "make_selection": "select",
 }
-OPERATION_TYPES = [
+
+OPERATION_TYPES = list(DESIGN_TYPES) + [
     "add",
     "solid",
     "gradient",
@@ -194,6 +196,11 @@ def execute(project, op):
     kind = ALIASES.get(kind, kind)
     require(isinstance(kind, str), "Operation requires a type")
     target = op.get("target", op.get("layer"))
+    from .design import execute_design, resolve_color
+
+    if kind in DESIGN_TYPES:
+        execute_design(project, op)
+        return
     if kind == "add":
         if "asset" in op:
             image = project.image(op["asset"])
@@ -228,14 +235,14 @@ def execute(project, op):
         w, h = op.get("width", c["width"]), op.get("height", c["height"])
         layer = new_layer(op.get("name", kind), kind, w, h)
         if kind == "solid":
-            color(substitute(op.get("color", "white"), project.state["variables"]))
+            color(resolve_color(op.get("color", "white"), project.state))
             layer["fill"] = op.get("color", "white")
         elif kind == "gradient":
             for key, default in (("start", "black"), ("end", "white")):
-                color(substitute(op.get(key, default), project.state["variables"]))
+                color(resolve_color(op.get(key, default), project.state))
                 layer[key] = op.get(key, default)
             layer["direction"] = op.get("direction", "vertical")
-            require(layer["direction"] in ("vertical", "horizontal"), "Invalid gradient direction")
+            layer.update({k: deepcopy(op[k]) for k in ("stops", "angle") if k in op})
         else:
             layer.update(
                 {
@@ -254,7 +261,7 @@ def execute(project, op):
                 project.assets[name] = data
                 layer["font"] = name
             layer["width"], layer["height"], _ = text_metrics(project, layer)
-            color(substitute(layer["color"], project.state["variables"]))
+            color(resolve_color(layer["color"], project.state))
         layer["x"] = finite(op.get("x", 0)) if op.get("x") != "center" else (c["width"] - layer["width"]) / 2
         layer["y"] = (
             finite(op.get("y", 0)) if op.get("y") != "center" else (c["height"] - layer["height"]) / 2
@@ -272,7 +279,7 @@ def execute(project, op):
             require(op["preset"] in CANVAS_PRESETS, "Unknown canvas preset")
         project.limits.size(w, h)
         background = op.get("background", c["background"])
-        color(substitute(background, project.state["variables"]))
+        color(resolve_color(background, project.state))
         c.update(width=w, height=h, background=background)
         if project.state["selection"]:
             old = selection_image(project)
@@ -296,8 +303,20 @@ def execute(project, op):
     if kind == "select-layer":
         project.state["active_layer"] = layer["id"]
     elif kind == "remove":
-        layers.remove(layer)
-        if project.state["active_layer"] == layer["id"]:
+        from .design import descendants
+
+        removed = descendants(project, layer["id"]) | {layer["id"]}
+        layers[:] = [item for item in layers if item["id"] not in removed]
+        for item in layers:
+            if item.get("clip") in removed:
+                item.pop("clip")
+        project.state["symbols"] = {
+            k: v for k, v in project.state.get("symbols", {}).items() if v not in removed
+        }
+        for board in project.state.get("artboards", {}).values():
+            if "targets" in board:
+                board["targets"] = [ident for ident in board["targets"] if ident not in removed]
+        if project.state["active_layer"] in removed:
             project.state["active_layer"] = layers[-1]["id"] if layers else None
     elif kind == "rename":
         layer["name"] = unique_name(project, op["name"])
@@ -306,6 +325,26 @@ def execute(project, op):
         duplicate["id"] = uid("lyr")
         duplicate["name"] = op.get("name", layer["name"] + " copy")
         append_layer(project, duplicate)
+        if layer["type"] == "group":
+            from .design import descendants
+
+            children = descendants(project, layer["id"])
+            copies = [deepcopy(item) for item in layers if item["id"] in children]
+            mapping = {layer["id"]: duplicate["id"], **{item["id"]: uid("lyr") for item in copies}}
+            for item in copies:
+                original_id = item["id"]
+                item["id"] = mapping[original_id]
+                item["name"] = duplicate["name"] + "/" + original_id
+                item["parent"] = mapping[item["parent"]]
+                if item.get("clip") in mapping:
+                    item["clip"] = mapping[item["clip"]]
+                for anchor, expression in item["constraints"].items():
+                    if isinstance(expression, str):
+                        for old, new in mapping.items():
+                            expression = expression.replace(old + ".", new + ".")
+                        item["constraints"][anchor] = expression
+                append_layer(project, item)
+            project.state["active_layer"] = duplicate["id"]
     elif kind == "text-set":
         require(layer["type"] == "text", "Layer is not editable text")
         for key in ("text", "size", "color", "align", "spacing", "stroke_width", "stroke_color"):
@@ -314,7 +353,7 @@ def execute(project, op):
         require(layer["align"] in ("left", "center", "right"), "Invalid text alignment")
         finite(layer.get("spacing", 4), "spacing", 0, 1000)
         finite(layer.get("stroke_width", 0), "stroke_width", 0, 100)
-        color(substitute(layer["color"], project.state["variables"]))
+        color(resolve_color(layer["color"], project.state))
         layer["width"], layer["height"], _ = text_metrics(project, layer)
         layer["auto_size"] = True
     elif kind == "move":
@@ -358,53 +397,63 @@ def execute(project, op):
     elif kind in ("hide", "show"):
         layer["visible"] = kind == "show"
     elif kind in ("raise", "lower", "top", "bottom", "reorder"):
-        index = layers.index(layer)
+        siblings = [item for item in layers if item.get("parent") == layer.get("parent")]
+        index = siblings.index(layer)
         if kind == "reorder":
             other = project.layer(op.get("above", op.get("below")))
-            require(other != layer, "Cannot reorder a layer relative to itself")
+            require(
+                other != layer and other.get("parent") == layer.get("parent"),
+                "Reorder requires another layer in the same group",
+            )
             layers.remove(layer)
             dest = layers.index(other) + (1 if "above" in op else 0)
         else:
-            dest = {"raise": index + 1, "lower": index - 1, "top": len(layers) - 1, "bottom": 0}[kind]
+            target_index = {
+                "raise": min(index + 1, len(siblings) - 1),
+                "lower": max(index - 1, 0),
+                "top": len(siblings) - 1,
+                "bottom": 0,
+            }[kind]
+            other = siblings[target_index]
+            if other == layer:
+                return
             layers.remove(layer)
-        layers.insert(max(0, min(len(layers), dest)), layer)
+            dest = layers.index(other) + (1 if target_index > index else 0)
+        layers.insert(dest, layer)
     elif kind == "align":
-        c = project.state["canvas"]
-        b = resolve_layout(project)[layer["id"]]
-        w, h = b[2:]
+        from .design import selected, union_bounds
+
+        targets = selected(project, op.get("targets", [layer["id"]]))
+        layout = resolve_layout(project)
+        ref = op.get("relative_to", "selection" if "targets" in op else "canvas")
+        if ref == "selection":
+            box = union_bounds([layout[item["id"]] for item in targets])
+        elif ref == "canvas":
+            parent = targets[0].get("parent")
+            c = project.layer(parent) if parent else project.state["canvas"]
+            box = (0, 0, c.get("content_width", c["width"]), c.get("content_height", c["height"]))
+        else:
+            other = project.layer(ref)
+            require(other.get("parent") == targets[0].get("parent"), "Alignment targets must share a parent")
+            box = layout[other["id"]]
         margin = finite(op.get("margin", 0), "margin", 0)
         alignment = op["alignment"]
-        require(
-            alignment
-            in (
-                "center",
-                "center-x",
-                "center-y",
-                "top",
-                "bottom",
-                "left",
-                "right",
-                "top-left",
-                "top-right",
-                "bottom-left",
-                "bottom-right",
-            ),
-            "Unknown alignment",
-        )
-        x, y = b[:2]
-        if "left" in alignment:
-            x = margin
-        if "right" in alignment:
-            x = c["width"] - w - margin
-        if "top" in alignment:
-            y = margin
-        if "bottom" in alignment:
-            y = c["height"] - h - margin
-        if alignment in ("center", "center-x"):
-            x = (c["width"] - w) / 2
-        if alignment in ("center", "center-y"):
-            y = (c["height"] - h) / 2
-        layer.update(x=x, y=y, constraints={})
+        for item in targets:
+            x, y, w, h = layout[item["id"]]
+            bx, by, bw, bh = box
+            if "left" in alignment:
+                x = bx + margin
+            if "right" in alignment:
+                x = bx + bw - w - margin
+            if "top" in alignment:
+                y = by + margin
+            if "bottom" in alignment:
+                y = by + bh - h - margin
+            if alignment in ("center", "center-x"):
+                x = bx + (bw - w) / 2
+            if alignment in ("center", "center-y"):
+                y = by + (bh - h) / 2
+            item.update(x=x, y=y, constraints={})
     elif kind == "constrain":
         constraints = op["constraints"]
         require(isinstance(constraints, dict), "Constraints must be an object")
@@ -418,7 +467,7 @@ def execute(project, op):
                     r"(.+)\.(left|right|top|bottom|center-x|center-y)([+-]\d+(?:\.\d+)?)?", expression
                 )
                 require(match, "Invalid constraint expression")
-                if match[1] != "canvas":
+                if match[1] != "canvas" and not match[1].startswith("guide:"):
                     expression = project.layer(match[1])["id"] + "." + match[2] + (match[3] or "")
             layer["constraints"][anchor] = expression
         for axes in (("left", "right", "center-x"), ("top", "bottom", "center-y")):
@@ -491,6 +540,10 @@ def execute(project, op):
         else:
             raise PixError("unknown_operation", f"Unknown operation: {kind}")
     elif kind == "rasterize":
+        require(
+            not layer.get("styles") and not layer.get("clip"),
+            "Remove layer styles/clipping before rasterizing",
+        )
         b = resolve_layout(project)[layer["id"]]
         image = layer_image(project, layer, b)
         layer.update(
@@ -509,7 +562,12 @@ def execute(project, op):
             constraints={},
             provenance={"type": "rasterized", "original": deepcopy(layer)},
         )
-        for key in ("text", "font", "size", "auto_size", "crop", "linked"):
+        if layer["provenance"]["original"]["type"] == "group":
+            from .design import descendants
+
+            removed = descendants(project, layer["id"])
+            layers[:] = [item for item in layers if item["id"] not in removed]
+        for key in ("text", "font", "size", "auto_size", "crop", "linked", "repeat", "lookup"):
             layer.pop(key, None)
     elif kind == "preset-save":
         project.state["presets"][op["name"]] = deepcopy(layer["effects"])

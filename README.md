@@ -80,6 +80,28 @@ pix undo
 
 Selections affect newly added effects and can become layer masks. Images, fonts imported from files, and grayscale masks are embedded; source imagery is not overwritten.
 
+## Design tools
+
+Groups and clipping masks, editable shapes, layer styles, linked text styles and swatches,
+artboards, frames, repeat/blend, and measurements now share Pix's operation engine.
+
+```bash
+pix shape ellipse --name sun --width 640 --height 640 --fill '#e8885c'
+pix shape rectangle --name stripe --width 700 --height 6 --fill '#152235'
+pix repeat stripe --count 16 --dy 37 --dh 1
+pix group stripes stripe
+pix clip stripes sun
+pix layer-style title drop-shadow --settings '{"blur":8,"dy":6,"opacity":0.65}'
+pix artboard story --preset story
+pix export-screens --out screens --scales 1 2
+pix render --data rows.csv --out campaign
+pix info --target title
+```
+
+[Design tool reference](docs/design-tools.md) covers every new operation, richer gradients,
+adjustment layers, automatic corrections, LUTs, comps, text layout, guides, pathfinder,
+symbols, provider-backed editing tools, and their precise limits.
+
 ## Automation and creative history
 
 ```bash
@@ -174,6 +196,7 @@ pytest -q
 python -m pip wheel . --no-deps --wheel-dir dist
 ```
 
+- [Design tools and template production](docs/design-tools.md)
 - [Command reference](docs/commands.md)
 - [Operation format and document semantics](docs/operations.md)
 - [AI providers](docs/providers.md)

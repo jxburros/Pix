@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Add editable design operations: groups/clipping, procedural shapes, layer styles, linked typography and swatches, frames, repeats/blends, guides/grids, pathfinder and symbols.
+- Add artboards, CSV data-set rendering, layer comps and multi-scale screen exports.
+- Add richer gradients, adjustment layers, histogram-based automatic corrections, named 3D LUTs, text box/warp/polyline layout, and read-only pixel/histogram/contrast measurements.
+- Expose shared operations through CLI/Python/REST/MCP and AI plans, plus provider-backed Remove, Content-Aware Fill and Select Subject.
+- Rebuild the example poster with one repeated stripe clipped to a live ellipse.
+
 ## 0.8.0
 
 - Expose canonical operation schemas directly in MCP tools/list, including required fields and enums; no resource fetch needed.

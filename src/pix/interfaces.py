@@ -105,7 +105,8 @@ class Session:
             # Service clients import images explicitly. They cannot read arbitrary server files,
             # enable plugins, or resolve linked assets or fonts supplied by a remote request.
             require(
-                not any(k in operation for k in ("path", "linked", "font")),
+                not any(k in operation for k in ("linked", "font"))
+                and ("path" not in operation or kind == "text-layout"),
                 "Filesystem fields are unavailable through services",
                 "forbidden",
             )
@@ -119,9 +120,13 @@ class Session:
         with self.project(write=not dry_run) as p:
             return p.apply(operations, dry_run=dry_run, detail=detail)
 
-    def render(self, variables=None):
+    def render(self, variables=None, artboard=None, comp=None):
         with self.project() as p:
-            return p.export(variables=variables, format="PNG")
+            return p.export(variables=variables, artboard=artboard, comp=comp, format="PNG")
+
+    def measure(self, **options):
+        with self.project() as p:
+            return p.measure(**options)
 
     def validate(self, profile=None, rules=None):
         with self.project() as p:
@@ -228,7 +233,14 @@ def create_app(path, *, token=None, limits=None):
 
     @app.post("/render")
     def render_variables(body: dict):
-        return Response(session.render(body.get("variables")), media_type="image/png")
+        return Response(
+            session.render(body.get("variables"), body.get("artboard"), body.get("comp")),
+            media_type="image/png",
+        )
+
+    @app.post("/measure")
+    def measure(body: dict):
+        return session.measure(**body)
 
     @app.post("/validate")
     def validation(body: dict):

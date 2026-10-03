@@ -118,9 +118,9 @@ class Project:
         check_state(candidate, candidate.state)
         after = candidate.inspect()  # Also resolves constraints, rejecting cycles atomically.
         changes = {
-            key: {"before": before[key], "after": after[key]}
-            for key in ("canvas", "layers", "selection", "variables", "active_layer", "presets")
-            if before[key] != after[key]
+            key: {"before": before.get(key), "after": after.get(key)}
+            for key in candidate.state
+            if before.get(key) != after.get(key)
         }
         if detail == "compact":
             from .changes import compact_changes
@@ -208,15 +208,30 @@ class Project:
         self.transaction = None
         self._cache.clear()
 
-    def render(self, variables=None):
+    def render(self, variables=None, *, artboard=None, comp=None):
         from .render import render
 
-        return render(self, variables)
+        return render(self, variables, artboard, comp)
 
     def export(self, path=None, **options):
         from .render import export
 
         return export(self, path, **options)
+
+    def measure(self, **options):
+        from .measure import measure
+
+        return measure(self, **options)
+
+    def export_screens(self, directory, **options):
+        from .exports import export_screens
+
+        return export_screens(self, directory, **options)
+
+    def render_data(self, csv_path, directory, **options):
+        from .exports import render_data
+
+        return render_data(self, csv_path, directory, **options)
 
     def manifest(self):
         return {

@@ -28,10 +28,13 @@ def service_operation_schema():
         if kind in EFFECTS:
             continue  # All effects use the canonical {type: effect, name: ...} form.
         for field in ("path", "linked", "font"):
-            props.pop(field, None)
-        if kind == "add":
+            if kind != "text-layout" or field != "path":
+                props.pop(field, None)
+        if kind in ("add", "frame"):
             variant.pop("anyOf")
             variant["required"].append("asset")
+        if kind == "replace-contents":
+            variant["anyOf"] = [{"required": ["asset"]}, {"required": ["variable"]}]
         if kind == "mask":
             props["action"]["enum"].remove("import")
         if kind == "effect":
@@ -43,7 +46,25 @@ def service_operation_schema():
         variant = json.loads(key)
         variant["properties"]["type"] = {"type": "string", "enum": kinds}
         variants.append(variant)
-    return {"oneOf": variants}
+    # Hoist identical property constraints once. Each variant still lists its allowed
+    # fields (additionalProperties=false), keeping per-operation validation strict.
+    definitions = {}
+    for variant in variants:
+        for key, value in variant["properties"].items():
+            definitions.setdefault(key, []).append(value)
+    common = {
+        key: values[0]
+        for key, values in definitions.items()
+        if key != "type" and len(values) > 1 and all(value == values[0] for value in values)
+    }
+    for variant in variants:
+        variant.pop("type", None)
+        variant["required"].remove("type")
+        if not variant["required"]:
+            variant.pop("required")
+        for key in common.keys() & variant["properties"].keys():
+            variant["properties"][key] = {}
+    return {"type": "object", "required": ["type"], "properties": common, "oneOf": variants}
 
 
 Operation = Annotated[dict, WithJsonSchema(service_operation_schema())]
@@ -51,11 +72,13 @@ Positive = Annotated[int, Field(ge=1)]
 Detail = Literal["compact", "full"]
 
 
-def preview(session, variables=None, max_width=1024, max_height=1024, max_bytes=1_048_576):
+def preview(
+    session, variables=None, max_width=1024, max_height=1024, max_bytes=1_048_576, artboard=None, comp=None
+):
     require(1 <= max_width <= 4096 and 1 <= max_height <= 4096, "Preview dimensions must be 1–4096")
     require(65_536 <= max_bytes <= 4_194_304, "Preview byte limit must be 65536–4194304")
     with session.project() as project:
-        image = project.render(variables=variables)
+        image = project.render(variables=variables, artboard=artboard, comp=comp)
         image.thumbnail((max_width, max_height), PILImage.Resampling.LANCZOS)
         while True:
             stream = BytesIO()
@@ -198,7 +221,7 @@ def build_server(session):
     ) -> dict:
         """Apply typed operations atomically and autosave. Compact returns changed fields by layer ID;
         full explicitly includes before/after snapshots. dry_run validates without saving.
-        Coordinates are canvas pixels; omit target to use the active layer. Import paths via pix_import_image.
+        Coordinates are pixels in the parent group or canvas; omit target to use the active layer. Import paths via pix_import_image.
         """
         return session.apply(operations, dry_run, detail)
 
@@ -208,11 +231,15 @@ def build_server(session):
         max_width: Annotated[int, Field(ge=1, le=4096)] = 1024,
         max_height: Annotated[int, Field(ge=1, le=4096)] = 1024,
         max_bytes: Annotated[int, Field(ge=65536, le=4194304)] = 1_048_576,
+        artboard: str | None = None,
+        comp: str | None = None,
     ) -> Image:
         """Return an aspect-preserving PNG, capped in dimensions AND encoded bytes (default 1 MiB).
         If needed, shrink further to fit the byte limit. Original document resolution is unchanged.
         """
-        return Image(data=preview(session, variables, max_width, max_height, max_bytes), format="png")
+        return Image(
+            data=preview(session, variables, max_width, max_height, max_bytes, artboard, comp), format="png"
+        )
 
     @server.tool()
     def pix_import_image(path: str, name: str = "image") -> dict:
@@ -228,6 +255,8 @@ def build_server(session):
         variables: dict | None = None,
         background: str = "white",
         overwrite: bool = False,
+        artboard: str | None = None,
+        comp: str | None = None,
     ) -> dict:
         """Export the active document to a workspace file, format from extension; full size by default.
         Supports PNG/JPEG/WEBP/TIFF/AVIF. Returns file metadata, never image bytes.
@@ -241,6 +270,22 @@ def build_server(session):
             profile=profile,
             variables=variables,
             background=background,
+            artboard=artboard,
+            comp=comp,
+        )
+
+    @server.tool()
+    def pix_measure(
+        point: list[int] | None = None,
+        region: list[int] | None = None,
+        foreground: str | None = None,
+        target: str | None = None,
+        artboard: str | None = None,
+        comp: str | None = None,
+    ) -> dict:
+        """Read RGBA samples, alpha-weighted averages, histograms and rendered layer contrast."""
+        return session.measure(
+            point=point, region=region, foreground=foreground, target=target, artboard=artboard, comp=comp
         )
 
     @server.tool()
@@ -299,6 +344,23 @@ def build_server(session):
             negative_prompt=negative_prompt,
             strength=strength,
         )
+
+    @server.tool()
+    def pix_ai_remove(name: str = "removed-object", provider: str | None = None) -> dict:
+        """Inpaint the selected object using a provider; insert a masked editable layer."""
+        return typed_ai(session, "ai", ["remove"], name=name, provider=provider)
+
+    @server.tool()
+    def pix_ai_content_aware_fill(
+        prompt: str | None = None, name: str = "filled-region", provider: str | None = None
+    ) -> dict:
+        """Fill the current selection using a configured provider, preserving pixels outside it."""
+        return typed_ai(session, "ai", ["content-aware-fill"], prompt=prompt, name=name, provider=provider)
+
+    @server.tool()
+    def pix_ai_select_subject(provider: str | None = None) -> dict:
+        """Select the main subject using a provider-generated segmentation mask."""
+        return typed_ai(session, "ai", ["select-subject"], provider=provider)
 
     @server.tool()
     def pix_ai_remove_background(layer: str, provider: str | None = None) -> dict:

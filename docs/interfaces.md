@@ -1,5 +1,7 @@
 # Python, REST, MCP, and extension interfaces
 
+See [design tools and template production](design-tools.md) for groups, clipping, shapes, styles, artboards, CSV rendering, measurements, and the other design operations.
+
 ## Python
 
 ```python

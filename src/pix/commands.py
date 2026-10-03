@@ -52,6 +52,11 @@ def normalize(tokens):
 def compile_command(tokens):
     tokens = normalize(shlex.split(tokens, comments=True) if isinstance(tokens, str) else tokens)
     cmd, args = tokens[0], tokens[1:]
+    from .design_cli import compile_design
+
+    design = compile_design(cmd, args)
+    if design is not None:
+        return design
     p = Parser(prog=f"pix {cmd}")
     op = {"type": cmd}
     if cmd == "add":
@@ -70,7 +75,11 @@ def compile_command(tokens):
         elif cmd == "gradient":
             p.add_argument("--start", default="black")
             p.add_argument("--end", default="white")
-            p.add_argument("--direction", choices=["vertical", "horizontal"])
+            p.add_argument("--direction", choices=["vertical", "horizontal", "radial", "angled"])
+            p.add_argument("--angle", type=float)
+            import json
+
+            p.add_argument("--stops", type=json.loads)
         p.add_argument("--name")
         if cmd != "text":
             p.add_argument("--width", type=int)
@@ -147,7 +156,7 @@ def compile_command(tokens):
         p.add_argument("--strength", type=float)
         data = vars(p.parse_args(args))
         values = data.pop("values")
-        if cmd in ("grayscale", "invert"):
+        if cmd in ("grayscale", "invert", "auto-tone", "auto-color", "auto-contrast"):
             require(len(values) <= 1, "Expected optional layer")
             if values:
                 data["target"] = values[0]
@@ -168,6 +177,8 @@ def compile_command(tokens):
         p.add_argument("target")
         p.add_argument("alignment")
         p.add_argument("--margin", type=float)
+        p.add_argument("--relative-to")
+        p.add_argument("--targets", nargs="+")
     elif cmd == "reorder":
         p.add_argument("target")
         g = p.add_mutually_exclusive_group(required=True)
@@ -280,7 +291,7 @@ def compile_script(path):
         try:
             operation = compile_command(tokens)
             for field in ("path", "font"):
-                if field in operation:
+                if field in operation and not (field == "path" and operation["type"] == "text-layout"):
                     candidate = Path(path).resolve().parent / operation[field]
                     if field == "path" or candidate.is_file():
                         operation[field] = str(candidate)

@@ -42,7 +42,9 @@ def operation_schema():
             "height": POSITIVE_INT,
             "start": S,
             "end": S,
-            "direction": enum("horizontal", "vertical"),
+            "direction": enum("horizontal", "vertical", "radial", "angled"),
+            "stops": {"type": "array", "items": {"type": "object"}},
+            "angle": N,
             "x": N,
             "y": N,
         },
@@ -117,6 +119,8 @@ def operation_schema():
                 "bottom-right",
             ),
             "margin": N,
+            "relative_to": S,
+            "targets": {"type": "array", "items": S, "minItems": 1, "uniqueItems": True},
         },
         ["alignment"],
     )
@@ -188,6 +192,9 @@ def operation_schema():
         {"name": S, "overrides": {"type": "object", "additionalProperties": {"type": ["string", "number"]}}},
         ["name"],
     )
+    from .design_schema import schemas
+
+    schemas(add)
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "title": "Pix operation batch",

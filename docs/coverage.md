@@ -1,6 +1,6 @@
 # Specification coverage
 
-This is a working first implementation spanning the six roadmap stages in the supplied [specification](product-spec.md). It is not a claim of production maturity or complete GIMP parity. Version 0.8.0 adds workspace file tools, typed AI tools, inline operation schemas, bounded previews, compact edit summaries, and cached service sessions on top of Windows installation and automatic updates; future work remains below.
+This is a working first implementation spanning the six roadmap stages in the supplied [specification](product-spec.md). It is not a claim of production maturity or complete GIMP parity. Version 0.8.0 adds workspace file tools, typed AI tools, inline operation schemas, bounded previews, compact edit summaries, and cached service sessions on top of Windows installation and automatic updates; the design tools below extend that scope.
 
 | Specification area | Implemented |
 | --- | --- |
@@ -10,6 +10,7 @@ This is a working first implementation spanning the six roadmap stages in the su
 | Vision (0.4) | Provider calls for description, object/face detection, OCR, segmentation and background masks; semantic selection converts returned masks into ordinary selections |
 | Generation (0.5) | Provider interface; OpenAI/ComfyUI/Automatic1111/HTTP adapters; text-to-image, image-to-image, selected inpainting, canvas extension/outpainting, upscaling; retained generation/source/mask provenance; regeneration |
 | Agents (0.6) | Python API, REST, official-SDK MCP server; operation JSON Schema; atomic batches; dry-run change summaries; persistent transactions; validation and rendered previews |
+| Design tools | Groups/clipping; procedural shapes; five layer styles; alignment/distribution; linked text styles/swatches; artboards; CSV data sets; image frames/replacement; repeats/blends; pixel measurements; richer gradients; adjustment layers; histogram corrections; LUTs; comps; text boxes/warps/polylines; guides/grids; shape silhouette boolean operations; symbols; multi-scale screen export; provider-backed Remove/Fill/Select Subject |
 | Further concepts | Opt-in linked images; dependencies/reproducibility inspection; opt-in filter/provider entry-point plugins; bounded archives and images; structured errors; test/CI workflow |
 
 ## Explicit boundaries
@@ -17,10 +18,10 @@ This is a working first implementation spanning the six roadmap stages in the su
 - **AI needs a real configured service.** Vision segmentation and background removal require a mask-producing HTTP/ComfyUI provider. OpenAI provides multimodal description/detection/OCR and planning, not a native segmentation implementation here. Live provider calls were not exercised in the development environment. Mocked adapter tests validate request/response behavior, not model quality.
 - **The core is Python**, not Rust. A Windows executable bundles the Python runtime. No C ABI, Rust core, or optimized tile/GPU renderer is supplied.
 - **RGBA8/sRGB-style pixel processing.** No ICC-managed workflow, CMYK prepress, high-bit-depth editing, RAW development, or embedded camera metadata preservation. Input orientation is normalized. AVIF availability depends on Pillow's codecs.
-- **Raster-oriented layers.** Solid/linear-gradient helpers and text are included. SVG/vector illustration, grouped layers, skew/perspective/matrix transforms, brushes, pressure input, animation, and PSD/XCF compatibility are not implemented.
-- **Basic text layout.** Editable multiline text, alignment, spacing, stroke and font embedding are present. No automatic wrapping or advanced publishing/typography engine.
+- **Raster-oriented output with procedural shapes.** Shapes retain geometry, groups and clipping remain editable, and pathfinder retains shape snapshots. SVG/Bézier editing, skew/perspective/matrix transforms, brushes, pressure input, animation, and PSD/XCF compatibility are not implemented. See [design tools](design-tools.md) for group raster-scaling and shape-combination semantics.
+- **Basic text layout.** Editable multiline text, wrapping/fitting, raster warp presets, polyline glyph placement, linked character/paragraph styles, alignment, spacing, stroke and font embedding are present. This is not an advanced publishing/shaping engine.
 - **Explicit layout semantics.** One anchor per axis, dependency cycles rejected. No general constraint solver. Outpainting freezes existing constraints at their current positions.
-- **Templates use embedded asset IDs.** A variable cannot load an arbitrary new path during rendering. Import the desired image first, then reference its embedded asset ID.
+- **Templates use embedded asset IDs.** Ordinary render variables cannot load arbitrary paths. Image-slot variables reference embedded asset IDs. The explicit local CSV data-set workflow can import image paths relative to its CSV file.
 - **Scripts are a command language.** No alternate English-like parser, control-flow language, shell execution, AI steps, or file lifecycle/export commands inside a `.pixscript`. Use the Python API or shell orchestration around scripts.
 - **Snapshot history.** No branch merging, replay-based collaboration, asset garbage collection, or history compaction. Comparison renders two captured states side by side. Open transactions are not isolated from other clients.
 - **Bounded inputs, not a process sandbox.** There is no `--max-memory` hard cap or universal execution timeout. Use OS/container resource limits. Installed plugins are trusted code. Filter/provider plugins exist; other plugin categories are deferred.

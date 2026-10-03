@@ -29,11 +29,16 @@ Inspect:   status, inspect [LAYER], describe, layers, effects [LAYER], manifest,
 Layers:    add FILE --name NAME, solid --color COLOR, gradient --start A --end B,
            text add TEXT --name NAME --size N, text NAME --text TEXT,
            remove, rename, duplicate, hide, show, raise, lower, top, bottom, reorder
+Design:    shape, group, ungroup, clip, layer-style, distribute, style-define,
+           style-apply, swatch, artboard, frame, replace-contents, repeat, repeat-blend,
+           adjustment, lut, lookup, comp-save, comp-apply, text-layout, guide, grid,
+           pathfinder, symbol, symbol-instance
+Measure:   info, sample X Y, histogram [--region X Y W H], info --target TEXT
 Editing:   move, resize, scale, rotate, flip, crop, opacity, blend, align,
            select-layer, select, mask, filter, effect, rasterize
 Effects:   brightness, contrast, saturation, hue, exposure, gamma, temperature,
            tint, shadows, highlights, blur, sharpen, grayscale, invert,
-           posterize, threshold, noise, grain, vignette
+           posterize, threshold, noise, grain, vignette, auto-tone, auto-color, auto-contrast
 Layout:    canvas resize SIZE, canvas preset NAME, constrain, unconstrain,
            variable set NAME VALUE
 History:   undo [N], redo [N], history, checkpoint NAME, branch NAME,
@@ -42,10 +47,12 @@ Automate:  apply FILE|- [--dry-run], run SCRIPT, batch GLOB --run SCRIPT --outpu
            each layer --name PATTERN -- COMMAND, preset save|apply|show NAME,
            transaction begin|commit|rollback, assert RULE, validate [PROFILE]
 Output:    export FILE [--quality N] [--scale 2x] [--profile NAME],
-           render [PROJECT] --out FILE [--set NAME=VALUE], convert --grayscale
+           render [PROJECT] --out FILE [--set NAME=VALUE] [--artboard NAME] [--comp NAME],
+           render --data rows.csv --out DIR, export-screens --out DIR --scales 1 2,
+           convert --grayscale
 AI:        ask PROMPT [--apply], generate --prompt TEXT --provider NAME,
            detect objects|faces, ocr, ai describe|info|regenerate|background-remove|upscale|extend,
-           select object LABEL --provider NAME
+           select object LABEL --provider NAME, ai remove|content-aware-fill|select-subject
 Updates:   update [--check | --rollback], updates [on | off | status]
 Services:  serve [--host 127.0.0.1] [--port 8765], mcp [--workspace DIR]
 
@@ -106,6 +113,9 @@ def output_options(args, command):
     p.add_argument("--format", choices=["PNG", "JPEG", "WEBP", "TIFF", "AVIF"])
     p.add_argument("--background", default="white")
     p.add_argument("--set", action="append")
+    p.add_argument("--artboard")
+    p.add_argument("--comp")
+    p.add_argument("--data")
     return p.parse_args(args)
 
 
@@ -279,6 +289,21 @@ def project_command(project, cmd, args):
             destination == "-" or Path(destination).resolve() != project.path,
             "Cannot export over the project",
         )
+        if a.data:
+            from .exports import render_data
+
+            require(destination != "-", "Data rendering requires an output directory")
+            require(a.format in (None, "PNG"), "Data rendering exports PNG files")
+            return render_data(
+                project,
+                a.data,
+                destination,
+                variables=pairs(a.set),
+                artboard=a.artboard,
+                comp=a.comp,
+                scale=float(a.scale.rstrip("x")),
+                profile=a.profile,
+            ), False
         data = project.export(
             None if destination == "-" else destination,
             quality=a.quality,
@@ -287,11 +312,44 @@ def project_command(project, cmd, args):
             variables=pairs(a.set),
             format=a.format,
             background=a.background,
+            artboard=a.artboard,
+            comp=a.comp,
         )
         if destination == "-":
             sys.stdout.buffer.write(data)
             return None, False
         return {"output": destination, "bytes": len(data)}, False
+    if cmd == "export-screens":
+        from .exports import export_screens
+
+        p = Parser(prog="pix export-screens")
+        p.add_argument("--out", required=True)
+        p.add_argument("--scales", nargs="+", default=["1", "2"])
+        p.add_argument("--artboards", nargs="+")
+        p.add_argument("--comp")
+        p.add_argument("--set", action="append")
+        a = p.parse_args(args)
+        return export_screens(
+            project,
+            a.out,
+            scales=[float(s.rstrip("x")) for s in a.scales],
+            boards=a.artboards,
+            comp=a.comp,
+            variables=pairs(a.set),
+        ), False
+    if cmd in ("info", "sample", "histogram"):
+        from .measure import measure
+
+        p = Parser(prog=f"pix {cmd}")
+        if cmd == "sample":
+            p.add_argument("point", nargs=2, type=int)
+        p.add_argument("--region", nargs=4, type=int)
+        p.add_argument("--foreground")
+        p.add_argument("--target")
+        p.add_argument("--artboard")
+        p.add_argument("--comp")
+        p.add_argument("--background", default="white")
+        return measure(project, **vars(p.parse_args(args))), False
     if cmd in ("apply", "run"):
         p = Parser(prog=f"pix {cmd}")
         p.add_argument("file")

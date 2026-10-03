@@ -6,17 +6,18 @@ import re
 
 from .errors import PixError, require
 from .model import finite
-from .render import BLENDS, color, resolve_layout, substitute
+from .render import BLENDS, color, resolve_layout
 
 
 def check_state(project, state):
     from .operations import effect_valid
+    from .design import validate_design, resolve_color
 
     require(isinstance(state, dict), "Invalid document state", "invalid_project")
     c = state["canvas"]
     project.limits.size(c["width"], c["height"])
     require(c["color_mode"] == "rgba8", "Only RGBA8 documents are supported", "invalid_project")
-    color(substitute(c["background"], state["variables"]))
+    color(resolve_color(c["background"], state))
     layers = state["layers"]
     require(
         isinstance(layers, list) and len(layers) <= project.limits.max_layers,
@@ -37,7 +38,21 @@ def check_state(project, state):
         ids.add(layer["id"])
         names.add(layer["name"])
         require(
-            layer["type"] in ("raster", "text", "solid", "gradient"), "Invalid layer type", "invalid_project"
+            layer["type"]
+            in (
+                "raster",
+                "text",
+                "solid",
+                "gradient",
+                "shape",
+                "group",
+                "frame",
+                "adjustment",
+                "pathfinder",
+                "symbol",
+            ),
+            "Invalid layer type",
+            "invalid_project",
         )
         project.limits.size(layer["width"], layer["height"])
         for axis in ("x", "y", "rotation"):
@@ -46,11 +61,11 @@ def check_state(project, state):
         require(layer["blend"] in BLENDS, "Invalid blend mode")
         require(isinstance(layer["visible"], bool), "Visibility must be boolean")
         require(isinstance(layer["constraints"], dict), "Invalid constraints")
-        if layer["type"] == "raster":
+        if layer["type"] in ("raster", "frame"):
             require(layer["asset"] in project.assets, "Missing layer asset", "missing_asset")
         for key in ("color", "fill", "start", "end", "stroke_color"):
             if key in layer:
-                color(substitute(layer[key], state["variables"]))
+                color(resolve_color(layer[key], state))
         if layer["type"] == "text":
             require(isinstance(layer["text"], str) and len(layer["text"]) <= 100000, "Invalid text")
             finite(layer["size"], "font size", 1, 4096)
@@ -62,6 +77,7 @@ def check_state(project, state):
             effect_valid(effect)
             if effect.get("selection"):
                 require(effect["selection"] in project.assets, "Missing effect selection", "missing_asset")
+    validate_design(project, state)
     require(not (ids & names), "Layer names cannot collide with IDs", "invalid_project")
     require(
         state["active_layer"] is None or state["active_layer"] in ids,
