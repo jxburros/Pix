@@ -15,6 +15,35 @@ from .project import Project
 from .validation import validate
 
 
+def service_check(operation):
+    """Restrictions for remote/agent callers, applied after normalization so aliases such as
+    ``font_family`` cannot bypass them. Service clients import images explicitly; they cannot
+    read arbitrary server files, enable plugins, or resolve linked assets or fonts."""
+    from .render import EFFECTS
+    from .operations import OPERATION_TYPES
+
+    kind = operation.get("type")
+    require(
+        not any(k in operation for k in ("linked", "font"))
+        and ("path" not in operation or kind == "text-layout"),
+        "Filesystem fields (path, linked, font) are unavailable through services; "
+        "import images with vixl_import_image and reference the returned asset",
+        "forbidden",
+        field=next((k for k in ("path", "linked", "font") if k in operation), None),
+    )
+    require(kind in set(OPERATION_TYPES) | set(EFFECTS), "Unsupported service operation", field="type")
+    if kind == "effect":
+        require(
+            operation.get("name") in EFFECTS,
+            f"Unknown effect {operation.get('name')!r}; built-in effects: {', '.join(EFFECTS)}",
+            "forbidden",
+            field="name",
+            allowed=list(EFFECTS),
+        )
+    if kind == "mask":
+        require(operation.get("action") != "import", "Import masks using embedded assets", "forbidden")
+
+
 class Session:
     def __init__(self, path=None, limits=None, *, workspace=None):
         self.limits = limits or Limits()
@@ -94,32 +123,11 @@ class Session:
             return p.inspect()
 
     def apply(self, operations, dry_run=False, detail="compact"):
-        from .render import EFFECTS
-        from .operations import OPERATION_TYPES
-
         if isinstance(operations, dict):
             operations = operations.get("operations", [operations])
         require(isinstance(operations, list), "Expected operation array")
-        for operation in operations:
-            require(isinstance(operation, dict), "Expected operation object")
-            kind = operation.get("type", operation.get("operation"))
-            # Service clients import images explicitly. They cannot read arbitrary server files,
-            # enable plugins, or resolve linked assets or fonts supplied by a remote request.
-            require(
-                not any(k in operation for k in ("linked", "font"))
-                and ("path" not in operation or kind == "text-layout"),
-                "Filesystem fields are unavailable through services",
-                "forbidden",
-            )
-            require(kind in set(OPERATION_TYPES) | set(EFFECTS), "Unsupported service operation")
-            if kind == "effect":
-                require(operation.get("name") in EFFECTS, "Service clients cannot load plugins", "forbidden")
-            if kind == "mask":
-                require(
-                    operation.get("action") != "import", "Import masks using embedded assets", "forbidden"
-                )
         with self.project(write=not dry_run) as p:
-            return p.apply(operations, dry_run=dry_run, detail=detail)
+            return p.apply(operations, dry_run=dry_run, detail=detail, check=service_check)
 
     def render(self, variables=None, artboard=None, comp=None):
         with self.project() as p:

@@ -10,14 +10,23 @@ from PIL import Image, ImageOps
 from .errors import VixlError, require
 
 
-def decode(data, limits, mode="RGBA"):
+def decode(data, limits, mode="RGBA", size_hint=None):
+    """Decode a bounded image. ``size_hint`` lets JPEG decode at a reduced DCT scale when the
+    caller only needs at least that many pixels (previews, downsized layers)."""
     require(len(data) <= limits.max_asset_bytes, "Asset exceeds byte limit", "resource_limit")
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("error", Image.DecompressionBombWarning)
             with Image.open(io.BytesIO(data)) as image:
                 limits.size(*image.size)
-                return ImageOps.exif_transpose(image).convert(mode)
+                if size_hint and image.format == "JPEG":
+                    # Orientation may swap axes, so request the larger side on both.
+                    side = max(size_hint)
+                    image.draft("RGB", (side, side))
+                image.load()
+                if image.getexif().get(0x0112, 1) != 1:
+                    image = ImageOps.exif_transpose(image)
+                return image.convert(mode) if image.mode != mode else image.copy()
     except (OSError, ValueError, Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
         raise VixlError("invalid_image", f"Cannot decode image: {exc}") from exc
 

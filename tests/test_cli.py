@@ -113,7 +113,7 @@ def test_presets_and_variable_delete_via_cli(tmp_path):
 def test_script_failure_does_not_save_earlier_operations(tmp_path):
     ok(tmp_path, "new", "20x20")
     ok(tmp_path, "solid", "--name", "base")
-    (tmp_path / "bad.vixlscript").write_text("move 4 5\nopacity 200\n")
+    (tmp_path / "bad.vixlscript").write_text("move 4 5\nopacity 250\n")
     before = (tmp_path / "untitled.vixl").read_bytes()
     assert cli(tmp_path, "run", "bad.vixlscript").returncode == 1
     assert (tmp_path / "untitled.vixl").read_bytes() == before

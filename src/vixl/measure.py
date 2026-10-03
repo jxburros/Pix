@@ -119,6 +119,7 @@ def measure(
             ratios = ratios[mask >= mask.max() * 0.95]
         result["contrast"] = {
             "minimum": round(float(ratios.min()), 3),
+            "p10": round(float(np.percentile(ratios, 10)), 3),
             "mean": round(float(ratios.mean()), 3),
             "maximum": round(float(ratios.max()), 3),
             "background": background,

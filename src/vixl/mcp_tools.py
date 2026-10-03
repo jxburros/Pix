@@ -39,6 +39,14 @@ def service_operation_schema():
             props["action"]["enum"].remove("import")
         if kind == "effect":
             props["name"] = {"type": "string", "enum": sorted(EFFECTS)}
+        # Coordinates/sizes also accept "center" and "N%" (see the tool description). A short,
+        # uniform spelling lets these hoist into one shared definition below.
+        for key in ("x", "y"):
+            if key in props:
+                props[key] = {"type": ["number", "string"], "pattern": r"^(center|-?\d+(\.\d+)?%)$"}
+        for key in ("width", "height"):
+            if key in props:
+                props[key] = {"type": ["integer", "string"], "minimum": 1, "pattern": r"^\d+(\.\d+)?%$"}
         key = json.dumps(variant, sort_keys=True)
         groups.setdefault(key, []).append(kind)
     variants = []

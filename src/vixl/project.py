@@ -19,8 +19,20 @@ from .model import Limits, new_state, uid
 # Every Nth revision on a chain stores a full snapshot; the others store a delta from the parent.
 SNAPSHOT_INTERVAL = 32
 FORMAT_VERSION = 2
+DECODED_BUDGET = 256 * 1024 * 1024
 NODE_KEYS = {"id", "parent", "operations", "label", "state", "delta", "squashed"}
 ASSET_REFERENCE = re.compile(rb"(?:assets|masks|fonts)/[0-9a-f]{64}\.[a-z0-9]{2,5}")
+
+
+def located(error, index, operation, count):
+    """Attach which operation failed, so an agent can fix one entry of a batch."""
+    if "operation_index" not in error.details:
+        kind = operation.get("type", operation.get("operation")) if isinstance(operation, dict) else None
+        error.details["operation_index"] = index
+        error.details["operation_type"] = kind
+        if count > 1:
+            error.args = (f"operations[{index}] ({kind}): {error}",)
+    return error
 
 
 class Project:
@@ -43,6 +55,7 @@ class Project:
         self.allow_linked = False
         self._revision = None
         self._cache = {}
+        self._decoded = {}
         self._head_state = None
         self._verified = set()
         self._record([], "Create document")
@@ -52,16 +65,38 @@ class Project:
         for layer in self.state["layers"]:
             if target in (layer["id"], layer["name"]):
                 return layer
+        names = [x["name"] for x in self.state["layers"]]
+        folded = [name for name in names if name.casefold() == str(target).casefold()]
+        suggestions = folded or difflib.get_close_matches(str(target), names, 3, 0.5)
+        message = f"Layer {target!r} does not exist" if target else "No active layer; pass target"
+        if suggestions:
+            message += f"; did you mean {' or '.join(map(repr, suggestions))}?"
+        elif names:
+            message += f". Layers: {', '.join(map(repr, names[-20:]))}"
         raise VixlError(
             "layer_not_found",
-            f"Layer {target!r} does not exist",
+            message,
+            field="target",
             requested=target,
-            suggestions=difflib.get_close_matches(str(target), [x["name"] for x in self.state["layers"]]),
+            suggestions=suggestions,
+            available=names[-50:],
         )
 
-    def image(self, asset, mode="RGBA"):
+    def image(self, asset, mode="RGBA", size_hint=None):
+        """Decode an embedded asset through a small byte-bounded LRU shared by edit candidates."""
         require(asset in self.assets, f"Missing embedded asset: {asset}", "missing_asset")
-        return decode(self.assets[asset], self.limits, mode)
+        key = (asset, mode, tuple(size_hint) if size_hint else None)
+        cache = self._decoded
+        if key in cache:
+            cache[key] = cache.pop(key)
+            return cache[key].copy()
+        image = decode(self.assets[asset], self.limits, mode, size_hint)
+        size = image.width * image.height * len(image.getbands())
+        if size <= DECODED_BUDGET // 2:
+            while cache and sum(i.width * i.height * len(i.getbands()) for i in cache.values()) + size > DECODED_BUDGET:
+                cache.pop(next(iter(cache)))
+            cache[key] = image.copy()
+        return image
 
     def clone(self):
         """Copy-on-write candidate. History nodes are immutable once recorded, so they are shared
@@ -184,7 +219,7 @@ class Project:
             "resource_limit",
         )
 
-    def apply(self, operations, *, dry_run=False, detail="full"):
+    def apply(self, operations, *, dry_run=False, detail="full", check=None):
         require(detail in ("compact", "full"), "Unknown response detail")
         from .operations import execute
 
@@ -195,16 +230,30 @@ class Project:
             "Expected a nonempty, bounded list of operations",
         )
         from .schema import validate_operation
+        from .normalize import apply_centering, resolve_geometry
 
-        operations = [validate_operation(op) for op in operations]
+        notes = []
+        validated = []
+        for index, operation in enumerate(operations):
+            try:
+                validated.append(validate_operation(operation, notes, index if len(operations) > 1 else None))
+                if check:
+                    check(validated[-1])
+            except VixlError as exc:
+                raise located(exc, index, operation, len(operations)) from exc
+        operations = validated
         candidate = self.clone()
         before = candidate.inspect()
-        for operation in operations:
-            require(isinstance(operation, dict), "Each operation must be an object")
+        for index, operation in enumerate(operations):
             try:
-                execute(candidate, deepcopy(operation))
+                resolved, centered = resolve_geometry(candidate, operation)
+                execute(candidate, deepcopy(resolved))
+                apply_centering(candidate, centered, operation)
+            except VixlError as exc:
+                raise located(exc, index, operation, len(operations)) from exc
             except (KeyError, TypeError, ValueError, OverflowError) as exc:
-                raise VixlError("invalid_operation", f"Malformed operation: {exc}") from exc
+                error = VixlError("invalid_operation", f"Malformed operation: {exc}")
+                raise located(error, index, operation, len(operations)) from exc
         from .validation import check_state
 
         check_state(candidate, candidate.state)
@@ -224,7 +273,10 @@ class Project:
             else:
                 candidate._record(operations)
             self.__dict__.update(candidate.__dict__)
-        return {"success": True, "dry_run": dry_run, "operations": len(operations), "changes": changes}
+        result = {"success": True, "dry_run": dry_run, "operations": len(operations), "changes": changes}
+        if notes:
+            result["normalized"] = notes
+        return result
 
     def undo(self, count=1):
         require(self.transaction is None, "Commit or roll back the transaction first")
@@ -265,6 +317,42 @@ class Project:
         self._head_state = deepcopy(state)
         if self.current_branch:
             self.branches[self.current_branch] = node
+
+    def resolve_ref(self, ref="head"):
+        """Resolve head, previous, a branch, checkpoint or revision ID, optionally with ~N."""
+        require(isinstance(ref, str) and ref, "History reference must be a non-empty string", field="ref")
+        if ref in ("previous", "prev", "parent"):
+            ref = "head~1"
+        base, _, back = ref.partition("~")
+        require(not back or back.isdigit(), "Use REF~N with a whole number N", field="ref")
+        node = self.head if base in ("head", "HEAD", "current") else self.branches.get(base, self.checkpoints.get(base, base))
+        require(
+            node in self.nodes,
+            f"Unknown history reference {ref!r}; use head, previous, head~N, a branch, checkpoint or revision ID",
+            field="ref",
+            branches=sorted(self.branches),
+            checkpoints=sorted(self.checkpoints),
+        )
+        for _ in range(int(back or 0)):
+            node = self.nodes[node]["parent"]
+            require(node is not None, f"History has no revision {ref!r}", "history_boundary", field="ref")
+        return node
+
+    def at(self, ref="head"):
+        """A read-only view of the document at a revision, for rendering and comparison."""
+        node = self.resolve_ref(ref)
+        if node == self.head:
+            return self
+        view = copy(self)
+        view.state = self._state_at(node)
+        if node not in self._verified:
+            from .validation import check_state
+
+            try:
+                check_state(view, view.state)
+            except (KeyError, TypeError, ValueError, AttributeError, RecursionError) as exc:
+                raise VixlError("invalid_project", f"Malformed history revision: {exc}") from exc
+        return view
 
     def branch(self, name):
         require(isinstance(name, str) and 0 < len(name) <= 200, "History name must be 1–200 characters")
@@ -343,6 +431,11 @@ class Project:
         from .animation import export_animation
 
         return export_animation(self, path, **options)
+
+    def check(self, **options):
+        from .checks import check_design
+
+        return check_design(self, **options)
 
     def measure(self, **options):
         from .measure import measure

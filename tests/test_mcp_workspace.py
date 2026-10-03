@@ -94,7 +94,7 @@ def test_session_caches_and_reloads_external_changes(tmp_path, monkeypatch):
     assert session.inspect()["layers"][0]["x"] == 8
     assert len(calls) == 2
     with pytest.raises(VixlError):
-        session.apply([{"type": "move", "x": 10}, {"type": "opacity", "value": 4}])
+        session.apply([{"type": "move", "x": 10}, {"type": "opacity", "value": 400}])
     assert session.inspect()["layers"][0]["x"] == 8
 
 

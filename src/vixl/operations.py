@@ -154,7 +154,7 @@ def _select(project, op):
     elif shape == "all":
         mask = Image.new("L", size, 255)
     elif shape in ("rect", "ellipse"):
-        x, y = finite(op.get("x", 0)), finite(op.get("y", 0))
+        x, y = finite(op.get("x", 0), "x"), finite(op.get("y", 0), "y")
         w, h = finite(op["width"], "width", 1), finite(op["height"], "height", 1)
         mask = Image.new("L", size)
         draw = ImageDraw.Draw(mask)
@@ -238,7 +238,7 @@ def execute(project, op):
             require("path" in op, "Linked layers require a path")
             layer["linked"] = str(source)
             project.allow_linked = True
-        layer["x"], layer["y"] = finite(op.get("x", 0)), finite(op.get("y", 0))
+        layer["x"], layer["y"] = finite(op.get("x", 0), "x"), finite(op.get("y", 0), "y")
         append_layer(project, layer)
         return
     if kind in ("solid", "gradient", "text"):
@@ -273,9 +273,9 @@ def execute(project, op):
                 layer["font"] = name
             layer["width"], layer["height"], _ = text_metrics(project, layer)
             color(resolve_color(layer["color"], project.state))
-        layer["x"] = finite(op.get("x", 0)) if op.get("x") != "center" else (c["width"] - layer["width"]) / 2
+        layer["x"] = finite(op.get("x", 0), "x") if op.get("x") != "center" else (c["width"] - layer["width"]) / 2
         layer["y"] = (
-            finite(op.get("y", 0)) if op.get("y") != "center" else (c["height"] - layer["height"]) / 2
+            finite(op.get("y", 0), "y") if op.get("y") != "center" else (c["height"] - layer["height"]) / 2
         )
         append_layer(project, layer)
         return
