@@ -190,6 +190,10 @@ vixl mcp --workspace .          # MCP over stdio; create/open documents with too
 
 MCP can create/open documents, import images by local path, and export files within its configured workspace. It advertises operation schemas directly, returns compact edit summaries, and bounds previews to 1024 pixels and 1 MiB by default. REST stays scoped to one project. See [interface setup](docs/interfaces.md), including MCP client configuration and authenticated REST access.
 
+### Agent skill
+
+[`skills/vixl`](skills/vixl/SKILL.md) is an agent skill that teaches AI agents to drive Vixl through MCP, the CLI, REST, or Python: the inspect → apply → preview → measure → export loop, every operation and tool, recipes, and common pitfalls. Copy the folder into your agent's skills directory (for Claude Code: `~/.claude/skills/vixl` or `.claude/skills/vixl` in a project).
+
 ## Python API
 
 ```python
@@ -214,6 +218,7 @@ pytest -q
 python -m pip wheel . --no-deps --wheel-dir dist
 ```
 
+- [Agent skill for AI agents](skills/vixl/SKILL.md)
 - [Spacing checks, pixel art and animation](docs/pixel-animation-spacing.md)
 - [Design tools and template production](docs/design-tools.md)
 - [Command reference](docs/commands.md)
