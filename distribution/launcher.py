@@ -1,6 +1,7 @@
 """Stable per-user launcher. Frozen separately; it does not import the imaging engine."""
 
 import os
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -18,6 +19,10 @@ def main():
             return 0
         if args == ["--pix-background-update"]:
             updater.background(root)
+            return 0
+        # Recovery must work even when a regression prevents the active CLI from importing.
+        if [arg for arg in args if arg != "--json"] == ["update", "--rollback"]:
+            print(json.dumps(updater.rollback(root)))
             return 0
         # Update controls inspect the currently installed state without switching it underneath the command.
         controls = any(x in ("update", "updates") for x in args)
@@ -40,7 +45,10 @@ def main():
                 pass  # Editing still works if Windows prevents background process creation.
         return subprocess.call([str(exe), *args], env=env)
     except updater.UpdateError as exc:
-        print(f"Pix: {exc}", file=sys.stderr)
+        message = (
+            json.dumps({"error": "update_error", "message": str(exc)}) if "--json" in args else f"Pix: {exc}"
+        )
+        print(message, file=sys.stderr)
         return 1
     except KeyboardInterrupt:
         return 130

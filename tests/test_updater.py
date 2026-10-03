@@ -295,3 +295,26 @@ def test_process_lock_excludes_other_processes(install):
     with u.locked(install):
         result = subprocess.run([sys.executable, "-c", script, str(install)], capture_output=True, timeout=5)
     assert result.returncode != 0 and b"Another Pix update" in result.stderr
+
+
+def test_launcher_rollback_does_not_depend_on_running_engine(install, monkeypatch, capsys):
+    import importlib.util
+    import sys
+
+    path = Path(__file__).resolve().parents[1] / "distribution" / "launcher.py"
+    monkeypatch.setitem(sys.modules, "updater", u)
+    spec = importlib.util.spec_from_file_location("pix_launcher_test", path)
+    launcher = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(launcher)
+    state = u.read_state(install)
+    state["previous"] = "0.6.0"
+    u.atomic_json(install / "install.json", state)
+    monkeypatch.setattr(sys, "executable", str(install / "bin/pix.exe"))
+    monkeypatch.setattr(sys, "argv", ["pix", "update", "--rollback", "--json"])
+    monkeypatch.setattr(u, "probe", lambda *a, **kw: None)
+    monkeypatch.setattr(
+        subprocess, "call", lambda *a, **kw: pytest.fail("broken active CLI must not execute")
+    )
+    assert launcher.main() == 0
+    assert json.loads(capsys.readouterr().out)["current"] == "0.6.0"
+    assert not u.read_state(install)["auto"]

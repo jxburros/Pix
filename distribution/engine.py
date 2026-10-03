@@ -12,6 +12,9 @@ def main():
     if sys.argv[1:] == ["--pix-healthcheck"]:
         from pix import Project, __version__
         from pix.interfaces import create_app, mcp_server
+        from pix.cli import dispatch
+
+        assert dispatch(["--version"])[0] == __version__
 
         with tempfile.TemporaryDirectory(prefix="pix-health-") as tmp:
             p = Project(64, 32)
