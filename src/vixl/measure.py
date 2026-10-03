@@ -24,6 +24,7 @@ def measure(
     comp=None,
     variables=None,
     background="white",
+    histogram="full",
 ):
     from .design_render import artboard_project
 
@@ -91,10 +92,24 @@ def measure(
         "alpha": round(float(alpha.mean()), 6),
     }
     visible = pixels[alpha > 0]
-    result["histogram"] = {
-        channel: np.bincount(visible[:, i], minlength=256).tolist()
-        for i, channel in enumerate(("red", "green", "blue", "alpha"))
-    }
+    require(histogram in ("full", "summary", "none"), "histogram must be full, summary or none", field="histogram")
+    channels = ("red", "green", "blue", "alpha")
+    if histogram == "full":
+        result["histogram"] = {
+            channel: np.bincount(visible[:, i], minlength=256).tolist() for i, channel in enumerate(channels)
+        }
+    elif histogram == "summary" and len(visible):
+        # Percentiles describe tone and range in a few numbers instead of 1,024 bins.
+        result["channels"] = {
+            channel: dict(
+                zip(
+                    ("min", "p5", "median", "p95", "max"),
+                    (int(v) for v in np.percentile(visible[:, i], (0, 5, 50, 95, 100))),
+                ),
+                mean=round(float(visible[:, i].mean()), 2),
+            )
+            for i, channel in enumerate(channels)
+        }
     result["visible_pixels"] = len(visible)
     if foreground or target_image is not None:
         from .design import resolve_color

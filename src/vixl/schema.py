@@ -303,7 +303,7 @@ def schema_error(error, operation, allowed):
         known = set(error.schema.get("properties", {}))
         extras = sorted(set(error.instance) - known)
         suggestions = {k: difflib.get_close_matches(k, sorted(known), 1, 0.5) for k in extras}
-        hints = [f"{k!r} → {v[0]!r}" for k, v in suggestions.items() if v]
+        hints = [f"{v[0]!r} instead of {k!r}" for k, v in suggestions.items() if v]
         where = f" in {field}" if field else f" for {kind!r}"
         message = f"Unknown field(s) {', '.join(map(repr, extras))}{where}. Allowed: {', '.join(sorted(known))}"
         if hints:

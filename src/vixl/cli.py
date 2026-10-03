@@ -60,7 +60,7 @@ AI:        ask PROMPT [--apply], generate --prompt TEXT --provider NAME,
            detect objects|faces, ocr, ai describe|info|regenerate|background-remove|upscale|extend,
            select object LABEL --provider NAME, ai remove|content-aware-fill|select-subject
 Updates:   update [--check | --rollback], updates [on | off | status]
-Services:  serve [--host 127.0.0.1] [--port 8765], mcp [--workspace DIR]
+Services:  serve [--host 127.0.0.1] [--port 8765], mcp [--workspace DIR] [--schema slim] [--planner]
 
 Options: --project/-p FILE, --json, --allow-linked, --plugins, --max-pixels N, --version
 Use vixl COMMAND --help for editing command arguments. See docs/commands.md.
@@ -225,10 +225,17 @@ def dispatch(argv):
 
         p = Parser(prog="vixl mcp")
         p.add_argument("--workspace", help="Directory containing documents, imports and exports")
+        p.add_argument(
+            "--schema",
+            choices=["full", "slim"],
+            default=os.environ.get("VIXL_MCP_SCHEMA", "full"),
+            help="slim advertises operation names only; fields come from vixl_operation_schema",
+        )
+        p.add_argument("--planner", action="store_true", help="Expose the provider-backed vixl_ai_plan tool")
         a = p.parse_args(args)
         # Explicit workspaces can start empty. Existing --project configurations still work.
         path = current_path(options.project) if options.project or not a.workspace else None
-        mcp_server(path, limits, workspace=a.workspace).run()
+        mcp_server(path, limits, workspace=a.workspace, schema=a.schema, planner=a.planner).run()
         return None, options.json
     path = current_path(options.project)
     if cmd == "serve":

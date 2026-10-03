@@ -203,6 +203,9 @@ def normalize_operation(operation, properties, known_types, effects, notes, inde
 
     if kind == "shape" and isinstance(op.get("shape"), str):
         guess = op["shape"].lower().replace("_", "-").replace(" ", "-")
+        if guess not in SHAPE_TYPES:
+            # "hexagonal", "circular", "rectangular", "stars" → their base shape.
+            guess = next((name for name in SHAPE_TYPES if len(name) > 3 and guess.startswith(name)), guess)
         if guess in SHAPE_TYPES and SHAPE_TYPES[guess][0] != op["shape"]:
             shape, extra = SHAPE_TYPES[guess]
             note(f"shape {op['shape']!r} → {shape!r}")
