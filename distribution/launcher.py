@@ -31,6 +31,13 @@ def main():
             )
             print(json.dumps(result))
             return 0
+        if control_args in (["updates"], ["updates", "status"], ["updates", "on"], ["updates", "off"]):
+            result = (
+                updater.preference(root, control_args[1] == "on")
+                if control_args[-1] in ("on", "off") else updater.status(root)
+            )
+            print(json.dumps(result))
+            return 0
         # Update controls inspect the currently installed state without switching it underneath the command.
         controls = any(x in ("update", "updates") for x in args)
         allow = os.environ.get("VIXL_NO_UPDATE") != "1" and not controls
@@ -50,8 +57,14 @@ def main():
                 )
             except OSError:
                 pass  # Editing still works if Windows prevents background process creation.
-        return subprocess.call([str(exe), *args], env=env)
-    except updater.UpdateError as exc:
+        try:
+            return subprocess.call([str(exe), *args], env=env)
+        except OSError as exc:
+            raise updater.UpdateError(
+                f"Cannot launch Vixl at {exe}: {exc}. "
+                "Use vixl updates status to inspect the installation or run the installer to repair Vixl."
+            ) from exc
+    except (updater.UpdateError, OSError) as exc:
         message = (
             json.dumps({"error": "update_error", "message": str(exc)}) if "--json" in args else f"Vixl: {exc}"
         )

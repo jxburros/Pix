@@ -31,6 +31,20 @@ Check the version from the exact executable your agent invokes before using docu
 
 Immediate explicit activation is available in 0.12.1+. When upgrading from an older updater, it may still report a staged update once; launch Vixl once to activate that release, or run the matching installer. New installers also put update/check/rollback controls in the stable launcher so recovery does not depend on importing a broken or older engine. Runtime updates do not replace that launcher.
 
+### Recovering from an inaccessible pending update
+
+Older launchers can crash in `probe` / `Path.is_file` with `[WinError 5] Access is denied` before they reject an inaccessible pending runtime. If `install.json` still names a working `current` version, bypass the pending switch and turn off automatic retries:
+
+```powershell
+$VixlExe = Join-Path $env:LOCALAPPDATA 'Programs\Vixl\bin\vixl.exe'
+& $VixlExe updates off
+& $VixlExe --version
+```
+
+This clears `pending` without deleting projects or installed runtimes. `previous: null` means rollback is unavailable; it does not prevent continuing with `current`. The fixed launcher rejects the inaccessible candidate, preserves the active runtime, and records the path and operating-system error under `last_error` in `vixl updates status`. Update settings work even when the active engine cannot start.
+
+Access denied can come from file permissions or security software; the traceback alone does not identify which. Repair the installation using an installer containing this fix, and check Windows Security's Protection History if access remains blocked. Installing only an engine update does not replace an older launcher. After repair, use `vixl updates on` to re-enable automatic updates.
+
 ### Moving from the earlier pip installation
 
 Install the new Windows edition first. After reopening the terminal, `where vixl` (Command Prompt) or `Get-Command vixl` (PowerShell) should resolve to `...\Programs\Vixl\bin\vixl.exe`.

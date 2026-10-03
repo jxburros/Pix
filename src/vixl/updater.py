@@ -142,8 +142,10 @@ def child_environment(root):
 
 def probe(root, release, folder=None):
     exe = Path(folder) / "vixl-engine.exe" if folder else executable(root, release)
-    require(exe.is_file(), f"Vixl {release} is incomplete")
     try:
+        # is_file() can raise on older Python and suppress access errors on
+        # newer Python. Keep stat inside the recovery boundary on every version.
+        require(stat.S_ISREG(exe.stat().st_mode), f"Vixl {release} is incomplete")
         result = subprocess.run(
             [str(exe), "--vixl-healthcheck"],
             capture_output=True,
@@ -157,7 +159,14 @@ def probe(root, release, folder=None):
             and payload.get("version") == release and payload.get("ok") is True,
             f"Vixl {release} did not pass its startup health check",
         )
-    except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+    except FileNotFoundError as exc:
+        raise UpdateError(f"Vixl {release} is incomplete at {exe}; no version switch was made") from exc
+    except OSError as exc:
+        raise UpdateError(
+            f"Cannot access or start Vixl {release} at {exe}: {exc}. "
+            "No version switch was made. Check file permissions or repair Vixl with the installer."
+        ) from exc
+    except (ValueError, subprocess.TimeoutExpired) as exc:
         raise UpdateError(f"Vixl {release} could not start; the previous version was kept") from exc
 
 
@@ -455,7 +464,16 @@ def prepare_launch(root, allow_updates=True):
                 state.update(pending=None, rejected=pending, last_error=str(exc))
             atomic_json(Path(root) / "install.json", state)
         exe = executable(root, state["current"])
-        if not exe.is_file():
+        try:
+            current_exists = stat.S_ISREG(exe.stat().st_mode)
+        except FileNotFoundError:
+            current_exists = False
+        except OSError as exc:
+            raise UpdateError(
+                f"Cannot access the active Vixl runtime at {exe}: {exc}. "
+                "Use vixl updates status to inspect the installation or run the installer to repair Vixl."
+            ) from exc
+        if not current_exists:
             previous = state.get("previous")
             require(previous, "Installed runtime is missing; run the installer to repair Vixl")
             probe(root, previous)
