@@ -1,5 +1,7 @@
 """Schemas for editable design primitives shared by every operation interface."""
 
+from .geometry import EXTRA_SHAPES
+
 TYPES = (
     "shape",
     "group",
@@ -27,7 +29,7 @@ TYPES = (
     "symbol",
     "symbol-instance",
 )
-SHAPES = ("rectangle", "rounded-rectangle", "ellipse", "polygon", "star", "line")
+SHAPES = ("rectangle", "rounded-rectangle", "ellipse", "polygon", "star", "line", *EXTRA_SHAPES)
 STYLES = ("drop-shadow", "stroke", "outer-glow", "color-overlay", "gradient-overlay")
 
 
@@ -42,6 +44,7 @@ def schemas(add):
         {
             **geometry,
             "shape": enum(*SHAPES),
+            "path": S,
             "fill": S,
             "stroke": S,
             "stroke_width": N,

@@ -1,5 +1,7 @@
 # Architecture and operational boundaries
 
+Vixl is a headless application designed for autonomous AI agents; humans can use the same interfaces.
+
 ```text
 CLI / shell / scripts / Python / REST / MCP / AI planner
                          |
@@ -11,7 +13,7 @@ CLI / shell / scripts / Python / REST / MCP / AI planner
                          |
    variables / constraints / Pillow + NumPy renderer
                          |
-                    PNG / JPEG / WebP / TIFF / AVIF
+                    PNG / JPEG / WebP / TIFF / AVIF / SVG
 ```
 
 `project.py` owns document lifecycle, candidate-state commits, history and archives. `operations.py` changes document state; it has no dependency on CLI output. `render.py` converts state into pixels without changing it. `commands.py` compiles the human syntax; scripts use the same compiler. `ai.py` delegates inference to providers and inserts ordinary assets/masks. `interfaces.py` exposes the shared boundary to REST and MCP. `schema.py` publishes the operation contract. `validation.py` checks structures, design rules, and dependencies.
@@ -36,7 +38,7 @@ Defaults (`vixl.model.Limits`):
 - At most 10,000 archive entries.
 - Layer-render cache: 16 entries / 64 MiB, with entries under 32 MiB.
 
-`--max-pixels` adjusts the pixel budget; Python APIs can pass a complete `Limits` instance. These are input/allocation bounds, **not a hard resident-memory or CPU quota**. Float blending and snapshot copies can use multiples of image size. Use operating-system/container limits for untrusted workloads and reduce pixel/layer/history limits on small machines. CLI processes do not share render caches; caching benefits a reused Python `Project` instance. REST/MCP reload projects per request for persistence/concurrency correctness.
+`--max-pixels` adjusts the pixel budget; Python APIs can pass a complete `Limits` instance. These are input/allocation bounds, **not a hard resident-memory or CPU quota**. Float blending and snapshot copies can use multiples of image size. Use operating-system/container limits for untrusted workloads and reduce pixel/layer/history limits on small machines. CLI processes do not share render caches; caching benefits a reused Python `Project` instance. REST/MCP cache the active document, reloading when the on-disk file changes, and serialize read/write requests for persistence/concurrency correctness.
 
 ## Trust and security
 

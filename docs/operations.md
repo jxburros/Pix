@@ -1,5 +1,7 @@
 # Operations and document semantics
 
+Vixl is a headless application designed for autonomous AI agents; humans can use the same interfaces.
+
 See [spacing checks and pixel animation](pixel-animation-spacing.md) for the 0.9.0 tools and API examples.
 
 See [design tools and template production](design-tools.md) for groups, clipping, shapes, styles, artboards, CSV rendering, measurements, and the other design operations.
@@ -54,3 +56,7 @@ Rendering resolves variables and acyclic layout constraints, loads source layers
 Default text size tracks the text's rendered bounds. Explicit resize turns off automatic sizing; editing text turns it back on. Imported fonts are embedded. The bundled default font makes basic text independent of host font installation. Exact raster output can still vary with Pillow/FreeType versions; pin your environment for reproducible builds.
 
 History is snapshot-based, not a replay engine. Undo, checkpoints, branching and comparison use captured state and assets. AI replay is a separate network operation and may vary with provider/model revisions even when a seed is retained.
+
+## Reusable design data (0.11)
+
+New shared operations are `palette-apply` (`name`, optional `prefix`), `template-apply` (`name`, optional `variables`), `guidance` (`name`, optional `text`, `style`, `delete`), and `font-register` (`name`, imported font `asset`). Guidance and registered font references are embedded in the document state and participate in undo/history. Template operations use the normal validation boundary and execute atomically. `shape` accepts the expanded catalog and `shape:"path"` with a bounded single-contour SVG command string in `path`. See [resource and path semantics](agent-resources.md).

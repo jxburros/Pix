@@ -1,5 +1,7 @@
 # Spacing checks and pixel animation (0.9.0)
 
+Vixl is a headless application designed for autonomous AI agents; humans can use the same interfaces.
+
 ## Check the spacing you intended
 
 Spacing analysis is opt-in. Vixl does not assume every object in a document should be evenly spaced.

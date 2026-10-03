@@ -49,6 +49,10 @@ def operation_schema():
             "y": N,
         },
     )
+    add("palette-apply", {"name": S, "prefix": S}, ["name"])
+    add("template-apply", {"name": S, "variables": {"type": "object"}}, ["name"])
+    add("guidance", {"name": S, "text": S, "style": S, "delete": B}, ["name"])
+    add("font-register", {"name": S, "asset": S}, ["name", "asset"])
     text = {
         "text": S,
         "size": POSITIVE_INT,

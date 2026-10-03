@@ -28,7 +28,7 @@ def service_operation_schema():
         if kind in EFFECTS:
             continue  # All effects use the canonical {type: effect, name: ...} form.
         for field in ("path", "linked", "font"):
-            if kind != "text-layout" or field != "path":
+            if kind not in ("text-layout", "shape") or field != "path":
                 props.pop(field, None)
         if kind in ("add", "frame"):
             variant.pop("anyOf")
@@ -95,8 +95,9 @@ def export_file(session, path, overwrite=False, **options):
     with session._mutex:
         destination = session.resolve(path)
         require(
-            destination.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff", ".avif"),
-            "Choose a PNG, JPEG, WEBP, TIFF or AVIF filename",
+            destination.suffix.lower()
+            in (".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff", ".avif", ".svg"),
+            "Choose a PNG, JPEG, WEBP, TIFF, AVIF or SVG filename",
         )
         require(destination.parent.is_dir(), "Destination directory must exist")
         with FileLock(str(destination) + ".lock", timeout=10, is_singleton=True):
@@ -167,6 +168,94 @@ def build_server(session):
             "Previews are resized for model context; export writes full resolution. AI tools need a configured provider."
         ),
     )
+
+    @server.tool()
+    def vixl_resources_list(kind: Literal["palettes", "templates", "guidance"]) -> dict:
+        """Discover built-in and user-added design resources without an open document."""
+        from .resources import catalog
+
+        return {"kind": kind, "names": sorted(catalog(kind))}
+
+    @server.tool()
+    def vixl_resource_get(kind: Literal["palettes", "templates", "guidance"], name: str) -> dict:
+        """Read a named palette, template, or style guide before applying it."""
+        from .resources import get
+
+        return {"name": name, "value": get(kind, name)}
+
+    @server.tool()
+    def vixl_resource_add(
+        kind: Literal["palettes", "templates", "guidance"], name: str, value: list | dict | str
+    ) -> dict:
+        """Register custom JSON design data or plain-text guidance in the user's library."""
+        from .resources import register
+
+        return register(kind, name, value)
+
+    @server.tool()
+    def vixl_template_create(path: str, name: str, variables: dict | None = None) -> dict:
+        """Create and activate an editable document from a named template without overwriting files."""
+        from .resources import create_template
+
+        with session._mutex:
+            destination = session.resolve(path)
+            require(
+                destination.suffix.lower() == ".vixl" and destination.parent.is_dir(),
+                "Use a .vixl path in an existing workspace directory",
+            )
+            with FileLock(str(destination) + ".lock", timeout=10, is_singleton=True):
+                require(not destination.exists(), "Destination already exists")
+                project = create_template(name, variables, limits=session.limits)
+                project.save(destination)
+                return session.open(destination)
+
+    @server.tool()
+    def vixl_import_font(path: str, name: str) -> dict:
+        """Import a workspace TTF/OTF font; use its registered name in vixl_text_add."""
+        from .fonts import import_font
+
+        with session.project(write=True) as project:
+            return import_font(project, session.resolve(path), name)
+
+    @server.tool()
+    def vixl_text_add(
+        text: str,
+        name: str = "text",
+        font: str | None = None,
+        size: Annotated[int, Field(ge=1, le=4096)] = 48,
+        color: str = "white",
+        x: float = 0,
+        y: float = 0,
+    ) -> dict:
+        """Add editable text with the bundled font or a previously imported registered font name."""
+        with session.project(write=True) as project:
+            op = {"type": "text", "text": text, "name": name, "size": size, "color": color, "x": x, "y": y}
+            if font:
+                require(font in project.state.get("fonts", {}), "Import/register this font first")
+                op["font"] = project.state["fonts"][font]
+            return project.apply(op, detail="compact")
+
+    @server.tool()
+    def vixl_models_list(
+        provider: str | None = None, capability: str | None = None, refresh: bool = False
+    ) -> dict:
+        """Discover authenticated model IDs and supported capabilities; keys stay in server environment variables."""
+        from .models import configured, DEFAULTS, CAPABILITIES, refresh as refresh_models
+
+        require(capability is None or capability in CAPABILITIES, "Unknown model capability")
+        settings = configured()
+        names = [provider] if provider else list(settings)
+        result = []
+        for name in names:
+            config = settings.get(name, DEFAULTS.get(name))
+            require(config is not None, "Unknown provider")
+            models = refresh_models(name) if refresh or "models" not in config else config["models"]
+            result.extend(
+                {"provider": name, **item}
+                for item in models
+                if not capability or capability in item.get("capabilities", [])
+            )
+        return {"models": result}
 
     @server.tool()
     def vixl_workspace_list(
@@ -260,7 +349,7 @@ def build_server(session):
         comp: str | None = None,
     ) -> dict:
         """Export the active document to a workspace file, format from extension; full size by default.
-        Supports PNG/JPEG/WEBP/TIFF/AVIF. Returns file metadata, never image bytes.
+        Supports PNG/JPEG/WEBP/TIFF/AVIF/SVG. Returns file metadata, never image bytes.
         """
         return export_file(
             session,

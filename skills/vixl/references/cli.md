@@ -1,5 +1,7 @@
 # CLI reference
 
+Vixl is headless and designed for autonomous AI agents; humans can use the same interfaces. See [new resources and SVG](resources.md) for 0.11 additions.
+
 ```text
 vixl [GLOBAL OPTIONS] COMMAND [ARGS]
 vixl                      # interactive shell (don't use from an agent; use commands)

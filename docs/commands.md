@@ -1,5 +1,7 @@
 # Command reference
 
+Vixl is a headless application designed for autonomous AI agents; humans can use the same interfaces.
+
 See [spacing checks and pixel animation](pixel-animation-spacing.md) for the 0.9.0 tools and API examples.
 
 See [design tools and template production](design-tools.md) for groups, clipping, shapes, styles, artboards, CSV rendering, measurements, and the other design operations.
@@ -182,3 +184,9 @@ vixl compare vivid clean --out comparison.png
 Presets save the active/target layer's complete effect stack. Applying one assigns fresh effect IDs and captures the current selection. Branches name movable tips; checkpoints are fixed. Checking out a checkpoint detaches history; create a branch to name subsequent work. Undo/redo moves the current branch tip; alternate history nodes remain available by ID. Transactions allow provisional edits across processes and commit as one undoable history entry. They do not hide provisional state from other clients of the same project.
 
 `batch` refuses output collisions and existing destinations, reports each input's result, and exits nonzero if any fail. Earlier successful outputs remain if a later item fails.
+
+## Agent resources and discovery (0.11)
+
+`vixl commands --json` lists available CLI commands and `vixl shapes --json` lists shape shortcuts. `COMMAND --help` works without an open document. Editing results use compact changes by default; `--detail full` restores snapshots.
+
+Use `palette list|show|add|apply`, `template list|show|add|new|apply`, `guidance list|show|add|apply|import|remove`, and `font list|import` for reusable design data. `providers list|add|refresh` and `models [--provider NAME] [--capability NAME] [--refresh]` discover available AI models. SVG joins PNG/JPEG/WebP/TIFF/AVIF export; PNG keeps transparency and JPEG uses `--background` for flattening. See [resource syntax and examples](agent-resources.md) and [model discovery](providers.md).

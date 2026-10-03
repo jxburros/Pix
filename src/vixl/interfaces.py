@@ -106,7 +106,7 @@ class Session:
             # enable plugins, or resolve linked assets or fonts supplied by a remote request.
             require(
                 not any(k in operation for k in ("linked", "font"))
-                and ("path" not in operation or kind == "text-layout"),
+                and ("path" not in operation or kind in ("text-layout", "shape")),
                 "Filesystem fields are unavailable through services",
                 "forbidden",
             )
@@ -185,7 +185,7 @@ def create_app(path, *, token=None, limits=None):
     except ImportError as exc:
         raise VixlError("missing_dependency", "Install vixl-engine[server]") from exc
     session = Session(path, limits)
-    app = FastAPI(title="Vixl Engine", version="0.10.0")
+    app = FastAPI(title="Vixl Engine", version="0.11.0")
     if not token:
         app.add_middleware(
             TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver"]
@@ -198,7 +198,9 @@ def create_app(path, *, token=None, limits=None):
         origin = request.headers.get("origin")
         if origin and origin != str(request.base_url).rstrip("/"):
             return JSONResponse({"error": "cross_origin_forbidden"}, status_code=403)
-        maximum = session.limits.max_asset_bytes if request.url.path == "/assets" else 1024 * 1024
+        maximum = session.limits.max_asset_bytes if request.url.path in ("/assets", "/fonts") else 1024 * 1024
+        if request.url.path == "/fonts":
+            maximum = min(maximum, 16 * 1024 * 1024)
         body = bytearray()
         async for chunk in request.stream():
             body.extend(chunk)
@@ -216,6 +218,64 @@ def create_app(path, *, token=None, limits=None):
         from .schema import operation_schema
 
         return operation_schema()
+
+    @app.get("/resources/{kind}")
+    def resources_list(kind: str):
+        from .resources import catalog
+
+        return {"names": sorted(catalog(kind))}
+
+    @app.get("/resources/{kind}/{name}")
+    def resource_get(kind: str, name: str):
+        from .resources import get
+
+        return {"name": name, "value": get(kind, name)}
+
+    @app.post("/resources/{kind}/{name}")
+    def resource_add(kind: str, name: str, body: dict):
+        from .resources import register
+
+        return register(kind, name, body.get("value"))
+
+    @app.post("/export")
+    def export_document(body: dict):
+        allowed = {
+            "format",
+            "quality",
+            "scale",
+            "variables",
+            "background",
+            "artboard",
+            "comp",
+            "sampling",
+            "profile",
+        }
+        require(set(body) <= allowed, "Unknown export option")
+        fmt = body.get("format", "PNG").upper()
+        media = {
+            "PNG": "image/png",
+            "JPEG": "image/jpeg",
+            "JPG": "image/jpeg",
+            "SVG": "image/svg+xml",
+            "WEBP": "image/webp",
+            "TIFF": "image/tiff",
+            "AVIF": "image/avif",
+        }
+        require(fmt in media, "Unsupported export format")
+        with session.project() as project:
+            return Response(project.export(**body), media_type=media[fmt])
+
+    @app.post("/fonts")
+    async def fonts(request: Request, name: str):
+        import hashlib
+        from .fonts import validate_font
+
+        data = await request.body()
+        validate_font(data)
+        with session.project(write=True) as project:
+            asset = f"fonts/{hashlib.sha256(data).hexdigest()}.ttf"
+            project.assets[asset] = data
+            return project.apply({"type": "font-register", "name": name, "asset": asset}, detail="compact")
 
     @app.get("/document")
     def document():

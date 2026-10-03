@@ -52,6 +52,8 @@ def execute_design(project, op):
         fields = {
             k: deepcopy(v) for k, v in op.items() if k not in ("type", "target", "name", "width", "height")
         }
+        if op["shape"] == "path":
+            fields["path_view"] = [op.get("width", c["width"]), op.get("height", c["height"])]
         append_layer(
             project,
             new_layer(
@@ -505,6 +507,11 @@ def validate_design(project, state):
         kind = layer["type"]
         if kind == "shape":
             require(layer["shape"] in SHAPES, "Invalid shape")
+            if layer["shape"] == "path":
+                from .geometry import parse_path
+
+                parse_path(layer.get("path"))
+                project.limits.size(*layer.get("path_view", [layer["width"], layer["height"]]))
             finite(layer.get("radius", 0), "radius", 0, 16384)
             finite(layer.get("stroke_width", 1), "stroke width", 0, 1024)
             sides = layer.get("sides", 5)

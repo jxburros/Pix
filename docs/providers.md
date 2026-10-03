@@ -1,5 +1,7 @@
 # AI providers
 
+Vixl is a headless application designed for autonomous AI agents; humans can use the same interfaces.
+
 Vixl contains adapters, not model weights. Configure only providers you trust; generation can incur your provider's charges. No AI service is called until you explicitly run an AI command. Provider URL/key configuration is local; it is not loaded from `.vixl` documents.
 
 Create `~/.config/vixl/providers.json` (or set `VIXL_PROVIDERS` to another file):
@@ -99,3 +101,46 @@ vixl ai regenerate forest --seed 42
 ```
 
 Outpainting shifts existing layers when extending left/top and keeps their visual positions relative to the original image. It freezes their current constrained positions while expanding the canvas. Add new constraints afterward if you want further responsive layout. Regeneration uses the captured source/mask, not the current composite, and preserves the layer's stable identity and layout.
+
+## Account model discovery and capability routing (0.11)
+
+Set API keys in your process environment, then register the environment-variable name. Vixl immediately fetches the account's model catalog before saving the provider; credentials are never saved in projects or provider JSON.
+
+```bash
+vixl providers add openai --type openai --key-env OPENAI_API_KEY
+vixl providers add anthropic --type anthropic --key-env ANTHROPIC_API_KEY
+vixl providers add mistral --type mistral --key-env MISTRAL_API_KEY
+vixl providers add meta --type meta --key-env LLAMA_API_KEY
+vixl providers add gemini --type gemini --key-env GEMINI_API_KEY
+vixl providers list
+vixl models --refresh
+vixl models --provider anthropic --capability plan
+vixl providers refresh openai
+vixl ask 'Improve the headline hierarchy' --provider anthropic
+vixl generate --prompt 'A minimal geometric landscape' --provider gemini --model models/gemini-2.5-flash-image --size 1024x1024
+```
+
+An environment key for a built-in provider is also sufficient for discovery without `providers add`. Model catalogs are cached in the provider configuration; refresh them when account access or provider availability changes. `VIXL_PROVIDERS` chooses an isolated configuration file. Default URLs target the vendors' APIs; `--url` permits a compatible endpoint. Names in examples are illustrative; use the IDs returned for your account.
+
+| Provider | Protocol | Capabilities in this adapter |
+| --- | --- | --- |
+| OpenAI | `/models`, chat completions, image generation/editing | Planning, description, detection, OCR; supported image models generate/edit |
+| Anthropic | Paginated `/models`, native `/messages`, `x-api-key` | Planning, description, detection, OCR; no image generation |
+| Mistral | `/models`, OpenAI-compatible chat completions | Planning; vision/detection/OCR on models advertising vision |
+| Meta Llama | `/models`, OpenAI-compatible chat completions | Planning; vision/detection/OCR on supported vision models. Account API access is required; use a compatible hosted endpoint if needed |
+| Gemini | Paginated `/models`, native `generateContent` and Imagen `predict`, `x-goog-api-key` | Planning/vision on multimodal content models; generation on image/Imagen models |
+| Midjourney gateway | User-provided HTTP `/models` and capability routes | Only capabilities actually advertised by the configured gateway |
+
+With no explicit `--provider`, routing tries the preferred/default provider and then other configured providers for a matching available model. `--provider` pins the vendor; `--model` pins an exact model ID. It does not spend money retrying inference on another vendor after a failed invocation. Providers without discovery, including existing HTTP/ComfyUI configurations, retain their explicit configuration workflow. For a text-only planning model, Vixl supplies document structure without attaching an unsupported vision image.
+
+Capabilities use vendor metadata where available and conservative model-family mappings otherwise. Unknown model families are not assumed to support every task. Update the cached model entry's `capabilities` list in `providers.json` for a verified compatible model that the mapping does not recognize. Supported labels are `plan`, `describe`, `detect`, `ocr`, `generate`, `segment`, `upscale`, and `background-remove`. Discovery reflects account catalog access; it does not verify quota, model quality, or each operation/mode. Provider-native size, mask, seed, and edit constraints still apply. Anthropic cannot generate images; Gemini's adapter does not implement segmentation or mask-based inpainting. Generated dimensions must match the requested dimensions; Vixl does not silently stretch provider output.
+
+Midjourney has no supported public model-discovery/inference API. Vixl does not scrape Discord or invent endpoints. To use a gateway you operate or have authorized:
+
+```bash
+vixl providers add midjourney --type midjourney --key-env MIDJOURNEY_GATEWAY_KEY --url https://your-gateway.example/vixl
+```
+
+The gateway must implement the HTTP contract below and GET `/models` returning `{"data":[{"id":"your-model","capabilities":["generate"]}]}`. It remains responsible for Midjourney access and job execution. Merely setting a Midjourney key cannot create official API access.
+
+All provider contracts are tested offline with mocked transports, including native headers, paginated discovery, failed onboarding, capability routing, and credential omission. Live vendor calls are not exercised in CI. Use `vixl_models_list` in MCP for typed discovery; model keys remain in the server process environment.
