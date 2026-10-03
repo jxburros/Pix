@@ -260,3 +260,13 @@ def test_relative_initial_project_and_external_change_during_read(tmp_path, monk
         other.save()
         assert not cached.state["layers"]
     assert session.inspect()["layers"][0]["name"] == "external"
+
+
+def test_workspace_export_profile_with_filename_format(tmp_path):
+    session = Session(workspace=tmp_path)
+    session.create("a.pix", 1200, 800)
+    # Filename format takes precedence; the profile still supplies its size/quality.
+    result = export_file(session, "social.png", profile="instagram")
+    with Image.open(tmp_path / "social.png") as image:
+        assert image.format == result["format"] == "PNG"
+        assert image.size == (1080, 720)
