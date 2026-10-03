@@ -17,6 +17,14 @@ def luminance(image):
     return np.asarray(ImageOps.grayscale(image), dtype=np.float32)
 
 
+def edge_filter(image, kernel):
+    """Extend edge pixels before convolution; avoid an artificial picture frame."""
+    values = np.asarray(image)
+    padding = ((1, 1), (1, 1)) + (((0, 0),) if values.ndim == 3 else ())
+    padded = Image.fromarray(np.pad(values, padding, mode="edge"))
+    return padded.filter(kernel).crop((1, 1, image.width + 1, image.height + 1))
+
+
 def remap(image, coordinates):
     """Bilinear spatial filters, chunked and premultiplied to protect alpha edges."""
     source = np.asarray(image)
@@ -143,7 +151,7 @@ def artistic_filter(image, effect):
         elif name == "stamp":
             result = gray.point(lambda p: 255 if p >= amount else 0).convert("RGB")
         else:
-            edges = gray.filter(ImageFilter.FIND_EDGES)
+            edges = edge_filter(gray, ImageFilter.FIND_EDGES)
             result = (
                 ImageChops.subtract(gray, edges).point(lambda p: 255 if p >= amount else 0).convert("RGB")
             )
@@ -155,13 +163,13 @@ def artistic_filter(image, effect):
         if name == "pencil-sketch":
             changed = Image.fromarray(np.uint8(np.clip(a * 255 / np.maximum(b, 1), 0, 255))).convert("RGB")
         else:
-            edge = np.asarray(gray.filter(ImageFilter.FIND_EDGES), dtype=np.float32)
+            edge = np.asarray(edge_filter(gray, ImageFilter.FIND_EDGES), dtype=np.float32)
             changed = Image.fromarray(np.uint8(np.clip(255 - edge * 2 - (255 - b) * 0.4, 0, 255))).convert(
                 "RGB"
             )
         result = blend(rgb, changed, amount)
     elif name in ("find-edges", "emboss"):
-        changed = rgb.filter(ImageFilter.FIND_EDGES if name == "find-edges" else ImageFilter.EMBOSS)
+        changed = edge_filter(rgb, ImageFilter.FIND_EDGES if name == "find-edges" else ImageFilter.EMBOSS)
         result = blend(rgb, changed, amount)
     elif name == "oil-paint":
         size = 2 * int(amount) + 1

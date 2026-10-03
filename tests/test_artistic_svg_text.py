@@ -49,6 +49,13 @@ def test_artistic_filters_are_visible_repeatable_and_keep_alpha(name):
         assert first.getchannel("A").tobytes() == original.getchannel("A").tobytes()
 
 
+@pytest.mark.parametrize("name", ["find-edges", "emboss", "charcoal", "photocopy"])
+def test_convolution_treatments_do_not_invent_a_border_on_flat_color(name):
+    image = Image.new("RGBA", (12, 10), (200, 150, 100, 128))
+    result = np.asarray(apply_effect(image, {"name": name, "amount": ARTISTIC_DEFAULTS[name]}))
+    assert np.all(result == result[5, 5])
+
+
 @pytest.mark.parametrize("name", ["glass", "watercolor"])
 def test_seed_changes_artwork_and_roundtrips_history(name, tmp_path):
     p = Project(96, 80)
