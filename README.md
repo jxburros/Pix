@@ -14,12 +14,14 @@ This initial implementation covers the specification's core editor and automatio
 
 ## Install on Windows
 
-Download **Vixl-Setup-0.12.0-windows-x64.exe** from [GitHub Releases](https://github.com/jxburros/Vixl/releases/latest) and run it. The installer bundles Python and the REST/MCP dependencies, installs for your Windows account without administrator access, and adds `vixl` to your user PATH. Completely close and reopen your terminal application after installation:
+Download **Vixl-Setup-VERSION-windows-x64.exe** from [GitHub Releases](https://github.com/jxburros/Vixl/releases/latest) and run it. The installer bundles Python and the REST/MCP dependencies, installs for your Windows account without administrator access, and adds `vixl` to your user PATH. Completely close and reopen your terminal application after installation:
 
 ```text
 vixl --version
 vixl --help
 ```
+
+If your current terminal cannot find `vixl`, see the [same-session PATH repair and version checks](docs/releases.md#using-the-current-terminal). Repository documentation describes the source version; use `vixl --version` to confirm which installed runtime is executing.
 
 Automatic updates are on by default. When you launch Vixl, it checks GitHub at most once a day in the background. A verified update is staged alongside the current version and activated on a subsequent launch. Existing editing sessions continue using their original runtime. Project files and AI credentials are not part of the installation.
 
@@ -32,7 +34,7 @@ vixl updates on
 vixl update --rollback
 ```
 
-`vixl update` stages an update for the next launch. Rollback selects the previous installed version and turns off automatic updates. [Installation, updates, and release instructions](docs/releases.md) explain migration from a pip install, rollback, and reproducible automation.
+`vixl update` downloads, verifies, and activates the new version before returning. It reports the active version; already-running sessions keep their original runtime. Rollback selects the previous installed version and turns off automatic updates. [Installation, updates, and release instructions](docs/releases.md) explain migration from a pip install, rollback, and reproducible automation.
 
 ## Install with Python / develop from source
 

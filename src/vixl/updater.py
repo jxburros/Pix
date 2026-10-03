@@ -153,7 +153,8 @@ def probe(root, release, folder=None):
         )
         payload = json.loads(result.stdout)
         require(
-            result.returncode == 0 and payload.get("version") == release and payload.get("ok") is True,
+            result.returncode == 0 and isinstance(payload, dict)
+            and payload.get("version") == release and payload.get("ok") is True,
             f"Vixl {release} did not pass its startup health check",
         )
     except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
@@ -374,8 +375,26 @@ def update(root, check_only=False, automatic=False):
                 else:
                     target_dir.parent.mkdir(parents=True, exist_ok=True)
                     os.replace(stage, target_dir)
-                state.update(pending=target, last_error=None, rejected=None)
+                if automatic:
+                    state.update(pending=target, last_error=None, rejected=None)
+                else:
+                    # Select the verified side-by-side runtime before returning. Never
+                    # replace files loaded by this command or an existing editing session.
+                    probe(root, target)
+                    state.update(
+                        previous=state["current"], current=target, pending=None,
+                        last_error=None, rejected=None,
+                    )
                 atomic_json(root / "install.json", state)
+        if not automatic:
+            return {
+                **result,
+                "previous": state["previous"],
+                "current": target,
+                "pending": None,
+                "status": "updated",
+                "message": f"Vixl {target} is now active. Existing sessions keep their original runtime.",
+            }
         return {
             **result,
             "status": "ready",

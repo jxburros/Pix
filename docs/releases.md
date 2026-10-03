@@ -13,6 +13,24 @@ Python and the engine dependencies are bundled. The installer requires no admini
 
 The first installer is not Authenticode-signed: a Windows publisher/SmartScreen warning may appear. The repository currently has no signing certificate configured. Download from the official repository's Releases page. `SHA256SUMS.txt` is provided for artifact verification; checksums do not constitute an independent publisher signature.
 
+### Using the current terminal
+
+An installer cannot change the environment of its parent terminal or agent process. To use the managed installation immediately in an existing PowerShell session, prepend only its launcher directory, preserving session-specific PATH entries:
+
+```powershell
+$VixlBin = Join-Path $env:LOCALAPPDATA 'Programs\Vixl\bin'
+$env:Path = "$VixlBin;$env:Path"
+Get-Command vixl -All
+vixl --version
+vixl updates status --json
+```
+
+For a custom install location, substitute its `bin` directory. To avoid any PATH ambiguity, use `& "$VixlBin\vixl.exe" --version` or `& "$VixlBin\vixl.exe" update`. In Command Prompt, use `set "PATH=%LOCALAPPDATA%\Programs\Vixl\bin;%PATH%"`.
+
+Check the version from the exact executable your agent invokes before using documented options. A pip install and the Windows managed install are separate: updating one does not update the other. Documentation on `main` may describe features newer than the latest published installer; use documentation at your installed release tag or install the matching published release. Grouped SVG vectors/plain outlined text require 0.11.1+, and shaped Unicode text plus `--svg-policy strict` require 0.12.0+.
+
+Immediate explicit activation is available in 0.12.1+. When upgrading from an older updater, it may still report a staged update once; launch Vixl once to activate that release, or run the matching installer. New installers also put update/check/rollback controls in the stable launcher so recovery does not depend on importing a broken or older engine. Runtime updates do not replace that launcher.
+
 ### Moving from the earlier pip installation
 
 Install the new Windows edition first. After reopening the terminal, `where vixl` (Command Prompt) or `Get-Command vixl` (PowerShell) should resolve to `...\Programs\Vixl\bin\vixl.exe`.
@@ -31,18 +49,18 @@ Only the latest **published stable** GitHub release with a compatible Windows up
 2. Downloads the runtime ZIP and verifies its exact size and SHA-256 against the release manifest.
 3. Rejects unsafe ZIP paths, links, case-colliding paths, NTFS alternate streams and oversized archives.
 4. Extracts into a temporary directory and runs an offline rendering/API/MCP startup health check.
-5. Moves the validated runtime into its own version directory and marks it pending.
-6. On a subsequent launch, checks it again and atomically switches the active-version pointer.
+5. Moves the validated runtime into its own version directory.
+6. For explicit `vixl update`, checks the installed path and atomically switches the active-version pointer before returning success. Background updates remain pending and activate after another health check on a subsequent normal launch.
 
 The previous runtime remains on disk. Existing processes continue using their original runtime: an update never replaces loaded executables or DLLs. A failed candidate health check clears the pending switch and leaves the current working version active. Failed user commands, validation failures and editing errors do **not** trigger rollbacks. Runtime regressions not detectable by the startup check may require manual rollback.
 
-Offline operation keeps working. `vixl updates status` exposes the last background failure; checks remain silent otherwise. The update commands themselves do not activate an already pending version before inspecting/changing settings.
+Offline operation keeps working. `vixl updates status` exposes the last background failure; checks remain silent otherwise. `update --check` and `updates` commands do not activate an already pending version before inspecting/changing settings. Explicit `update` activates the verified release immediately, including an already staged copy.
 
 ## Controls
 
 ```text
 vixl update --check       Check now; do not download an application update
-vixl update               Download and stage now; switch on the next normal launch
+vixl update               Download, verify, and activate now; report the active version
 vixl updates status       Inspect installed versions, settings, and last check/error
 vixl updates off          Disable background checks and cancel pending activation
 vixl updates on           Re-enable future automatic checks
@@ -69,12 +87,12 @@ Python installations intentionally do not self-update or invoke pip. They return
 To publish a stable release:
 
 1. Update the single-sourced version in `src/vixl/__init__.py` (package/API versions derive from it), and the displayed document versions; update release notes/documentation as needed.
-2. Run tests and review the PR's **Windows installer and releases** workflow. It runs a real silent installer, verifies PATH lookup, creates/exports a project using the frozen runtime, stages and activates an update with mocked network transport, checks corrupted-candidate recovery, and uninstalls while preserving a user project and existing PATH entries.
+2. Run tests and review the PR's **Windows installer and releases** workflow. It runs a real silent installer, verifies PATH lookup, creates/exports a project using the frozen runtime, activates an explicit update before any normal launch with mocked network transport, checks corrupted-candidate recovery, and uninstalls while preserving a user project and existing PATH entries.
 3. Tag the reviewed commit with its exact version and push the tag:
 
    ```bash
-   git tag v0.12.0 <reviewed-commit>
-   git push origin v0.12.0
+   git tag v0.12.1 <reviewed-commit>
+   git push origin v0.12.1
    ```
 
 4. The tag workflow re-runs tests, checks tag/package-version consistency, builds the distributions, and creates a **draft** GitHub release. It uploads every artifact before publishing it as the latest stable release. No release becomes visible to the updater while files are still being uploaded.

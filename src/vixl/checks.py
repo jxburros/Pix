@@ -1,9 +1,10 @@
 """Design self-checks for agents that cannot look at every pixel.
 
-``check_design`` reports only problems, so a passing document costs a few tokens. Checks run on
-top-level layers (a group is checked as one unit). Full-canvas layers are treated as background.
+``check_design`` reports only problems, including visible descendants of groups.
+Full-canvas non-text layers are treated as background.
 """
 
+import math
 import re
 
 import numpy as np
@@ -71,7 +72,7 @@ def check_design(
 ):
     """Return ``{"passed", "errors", "warnings", "issues", "checked"}`` for the rendered design."""
     from .design_render import artboard_project
-    from .render import layer_image, resolve_layout, resolved_layers
+    from .render import layer_canvas_surface, resolve_layout, resolved_layers
 
     checks = list(checks or CHECKS)
     unknown = sorted(set(checks) - set(CHECKS))
@@ -80,18 +81,48 @@ def check_design(
     c = candidate.state["canvas"]
     width, height = c["width"], c["height"]
     resolved = {item["id"]: item for item in resolved_layers(candidate)}
-    bounds = resolve_layout(candidate, layers=list(resolved.values()))
+    local_bounds = resolve_layout(candidate, layers=list(resolved.values()))
+
+    def ancestors(item):
+        while item.get("parent"):
+            item = resolved[item["parent"]]
+            yield item
+
+    def visible(item):
+        return all(x["visible"] and x["opacity"] > 0 for x in (item, *ancestors(item)))
+
+    # Layout bounds are local to the immediate group. Project their corners
+    # through the same centered scale/flip/rotation used by the renderer.
+    bounds, text_scales = {}, {}
+    for item in resolved.values():
+        matrix = np.eye(3)
+        for parent in ancestors(item):
+            x, y, w, h = local_bounds[parent["id"]]
+            angle = math.radians(parent["rotation"])
+            co, si = math.cos(angle), math.sin(angle)
+            sx = parent["width"] / parent["content_width"] * (-1 if parent["flip_x"] else 1)
+            sy = parent["height"] / parent["content_height"] * (-1 if parent["flip_y"] else 1)
+            transform = np.array([[co * sx, -si * sy, 0], [si * sx, co * sy, 0], [0, 0, 1]])
+            center = transform @ [parent["content_width"] / 2, parent["content_height"] / 2, 1]
+            transform[:2, 2] = [x + w / 2 - center[0], y + h / 2 - center[1]]
+            matrix = transform @ matrix
+        x, y, w, h = local_bounds[item["id"]]
+        corners = matrix @ np.array([[x, x + w, x, x + w], [y, y, y + h, y + h], [1, 1, 1, 1]])
+        left, top = np.floor(corners[:2].min(axis=1) + 1e-8).astype(int)
+        right, bottom = np.ceil(corners[:2].max(axis=1) - 1e-8).astype(int)
+        bounds[item["id"]] = tuple(map(int, (left, top, right - left, bottom - top)))
+        text_scales[item["id"]] = float(np.linalg.norm(matrix[:2, 1]))
     layers = [
         item
-        for item in candidate.state["layers"]
-        if not item.get("parent") and item["visible"] and item["type"] != "adjustment"
+        for item in resolved.values()
+        if visible(item) and item["type"] != "adjustment"
     ]
     if targets:
         wanted = {candidate.layer(t)["id"] for t in targets}
-        layers = [item for item in layers if item["id"] in wanted]
+        layers = [item for item in layers if any(x["id"] in wanted for x in (item, *ancestors(item)))]
 
     def background(item):
-        return _contains(bounds[item["id"]], (0, 0, width, height))
+        return item["type"] != "text" and _contains(bounds[item["id"]], (0, 0, width, height))
 
     content = [item for item in layers if not background(item)]
     issues = []
@@ -105,6 +136,12 @@ def check_design(
             {"check": check, "severity": severity, "layers": [x["name"] for x in layers], "message": message, **extra}
         )
 
+    for item in content:
+        if any(parent.get("repeat") for parent in ancestors(item)) and set(checks) - {"contrast"}:
+            issue("coverage", "warning",
+                  f"{item['name']!r} is inside a repeated group; geometry checks cover its base instance. "
+                  "Visually inspect the repeated instances.", [item])
+
     if "bounds" in checks:
         for item in content:
             x, y, w, h = bounds[item["id"]]
@@ -113,19 +150,27 @@ def check_design(
             elif x < 0 or y < 0 or x + w > width or y + h > height:
                 severity = "error" if is_text(item) else "warning"
                 issue("bounds", severity, f"{item['name']!r} is cut off by the canvas edge", [item], bounds=[x, y, w, h])
+            if item.get("parent"):
+                parent = resolved[item["parent"]]
+                box = (0, 0, parent["content_width"], parent["content_height"])
+                if not _contains(box, local_bounds[item["id"]]):
+                    issue("bounds", "error" if is_text(item) else "warning",
+                          f"{item['name']!r} is clipped by group {parent['name']!r}", [item])
 
     alphas = {}
 
     def alpha(item):
         if item["id"] not in alphas:
-            b = bounds[item["id"]]
-            tile = layer_image(candidate, {**resolved[item["id"]], "opacity": 1}, b)
-            alphas[item["id"]] = np.asarray(tile.getchannel("A")) > 32
+            tile = layer_canvas_surface(candidate, resolved[item["id"]], local_bounds, resolved)
+            x, y, w, h = bounds[item["id"]]
+            box = (max(0, x), max(0, y), min(width, x + w), min(height, y + h))
+            alphas[item["id"]] = np.asarray(tile.getchannel("A").crop(box)) > 32
         return alphas[item["id"]]
 
     if "overlap" in checks:
-        for i, first in enumerate(content):
-            for second in content[i + 1 :]:
+        drawable = [item for item in content if item["type"] != "group"]
+        for i, first in enumerate(drawable):
+            for second in drawable[i + 1 :]:
                 a, b = bounds[first["id"]], bounds[second["id"]]
                 if not _intersects(a, b):
                     continue
@@ -136,10 +181,14 @@ def check_design(
                     other = second if texts[0] is first else first
                     if _contains(bounds[other["id"]], bounds[texts[0]["id"]]):
                         continue  # A label inside its button or panel.
-                left, top = max(a[0], b[0]), max(a[1], b[1])
-                right, bottom = min(a[0] + a[2], b[0] + b[2]), min(a[1] + a[3], b[1] + b[3])
-                ma = alpha(first)[top - a[1] : bottom - a[1], left - a[0] : right - a[0]]
-                mb = alpha(second)[top - b[1] : bottom - b[1], left - b[0] : right - b[0]]
+                left, top = max(0, a[0], b[0]), max(0, a[1], b[1])
+                right = min(width, a[0] + a[2], b[0] + b[2])
+                bottom = min(height, a[1] + a[3], b[1] + b[3])
+                if left >= right or top >= bottom:
+                    continue
+                ax, ay, bx, by = max(0, a[0]), max(0, a[1]), max(0, b[0]), max(0, b[1])
+                ma = alpha(first)[top - ay:bottom - ay, left - ax:right - ax]
+                mb = alpha(second)[top - by:bottom - by, left - bx:right - bx]
                 pixels = int(np.logical_and(ma, mb).sum())
                 smaller = max(1, min(int(alpha(first).sum()), int(alpha(second).sum())))
                 if pixels > 4 and pixels / smaller > 0.005:
@@ -163,7 +212,7 @@ def check_design(
             except Exception as exc:  # A text layer without visible pixels has no contrast.
                 issue("contrast", "warning", f"Could not measure {item['name']!r}: {exc}", [item])
                 continue
-            large = resolved[item["id"]].get("size", 0) >= 24
+            large = resolved[item["id"]].get("size", 0) * text_scales[item["id"]] >= 24
             threshold = min_contrast or (3.0 if large else 4.5)
             if result["p10"] < threshold:
                 issue(
@@ -209,8 +258,8 @@ def check_design(
             size = resolved[item["id"]].get("size", 0)
             if item.get("text_layout", {}).get("fit"):
                 lines = max(1, resolved[item["id"]]["text"].count("\n") + 1)
-                size = min(size, bounds[item["id"]][3] / lines)
-            effective = size * scale
+                size = min(size, local_bounds[item["id"]][3] / lines)
+            effective = size * text_scales[item["id"]] * scale
             if effective < min_thumbnail_text:
                 issue(
                     "legibility",
