@@ -33,7 +33,13 @@ Design:    shape, group, ungroup, clip, layer-style, distribute, style-define,
            style-apply, swatch, artboard, frame, replace-contents, repeat, repeat-blend,
            adjustment, lut, lookup, comp-save, comp-apply, text-layout, guide, grid,
            pathfinder, symbol, symbol-instance
-Measure:   info, sample X Y, histogram [--region X Y W H], info --target TEXT
+Measure:   info, sample X Y, histogram [--region X Y W H], info --target TEXT,
+           spacing --targets A B C --axis vertical [--expected N] [--tolerance N] [--check],
+           spacing --around BODY --before HEADER --after FOOTER
+Pixels:    pixel-art, pixel-draw, pixel-palette, pixels [LAYER],
+           frame-save NAME [--duration MS], frame-apply NAME, frame-delete NAME,
+           animation, animation-set --loop N --order FRAME FRAME,
+           export-animation --out FILE --format gif|apng|sheet [--scale N]
 Editing:   move, resize, scale, rotate, flip, crop, opacity, blend, align,
            select-layer, select, mask, filter, effect, rasterize
 Effects:   brightness, contrast, saturation, hue, exposure, gamma, temperature,
@@ -116,6 +122,7 @@ def output_options(args, command):
     p.add_argument("--artboard")
     p.add_argument("--comp")
     p.add_argument("--data")
+    p.add_argument("--sampling", choices=["smooth", "nearest"], default="smooth")
     return p.parse_args(args)
 
 
@@ -301,6 +308,7 @@ def project_command(project, cmd, args):
                 variables=pairs(a.set),
                 artboard=a.artboard,
                 comp=a.comp,
+                sampling=a.sampling,
                 scale=float(a.scale.rstrip("x")),
                 profile=a.profile,
             ), False
@@ -314,11 +322,41 @@ def project_command(project, cmd, args):
             background=a.background,
             artboard=a.artboard,
             comp=a.comp,
+            sampling=a.sampling,
         )
         if destination == "-":
             sys.stdout.buffer.write(data)
             return None, False
         return {"output": destination, "bytes": len(data)}, False
+    if cmd == "spacing":
+        p = Parser(prog="pix spacing")
+        p.add_argument("--targets", nargs="+")
+        p.add_argument("--axis", choices=["horizontal", "vertical"], default="vertical")
+        for key in ("around", "before", "after", "artboard", "comp"):
+            p.add_argument("--" + key)
+        p.add_argument("--expected", type=float)
+        p.add_argument("--tolerance", type=float, default=1)
+        p.add_argument("--check", action="store_true")
+        options = vars(p.parse_args(args))
+        check = options.pop("check")
+        result = project.measure_spacing(**options)
+        if check and not result["passed"]:
+            raise PixError("spacing_mismatch", "Requested spacing is inconsistent", measurement=result)
+        return result, False
+    if cmd == "pixels":
+        require(len(args) <= 1, "Use pixels [LAYER]")
+        return project.inspect_pixels(args[0] if args else None), False
+    if cmd == "animation":
+        require(not args, "Use animation to inspect frames")
+        return project.inspect_animation(), False
+    if cmd == "export-animation":
+        p = Parser(prog="pix export-animation")
+        p.add_argument("--out", required=True)
+        p.add_argument("--format", choices=["gif", "apng", "sheet"])
+        p.add_argument("--scale", type=int, default=1)
+        p.add_argument("--columns", type=int)
+        a = p.parse_args(args)
+        return project.export_animation(a.out, format=a.format, scale=a.scale, columns=a.columns), False
     if cmd == "export-screens":
         from .exports import export_screens
 

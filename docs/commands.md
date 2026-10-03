@@ -1,5 +1,7 @@
 # Command reference
 
+See [spacing checks and pixel animation](pixel-animation-spacing.md) for the 0.9.0 tools and API examples.
+
 See [design tools and template production](design-tools.md) for groups, clipping, shapes, styles, artboards, CSV rendering, measurements, and the other design operations.
 
 Global options can appear before or after the command: `--project FILE` / `-p FILE`, `--json`, `--allow-linked`, `--plugins`, `--max-pixels N`, `--version`. The default project is stored in the current directory's `.pix-session.json`. Use explicit paths in CI and concurrent workflows. `pix COMMAND --help` prints syntax for editing commands.

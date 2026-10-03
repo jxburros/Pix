@@ -124,6 +124,10 @@ class Session:
         with self.project() as p:
             return p.export(variables=variables, artboard=artboard, comp=comp, format="PNG")
 
+    def measure_spacing(self, **options):
+        with self.project() as p:
+            return p.measure_spacing(**options)
+
     def measure(self, **options):
         with self.project() as p:
             return p.measure(**options)
@@ -181,7 +185,7 @@ def create_app(path, *, token=None, limits=None):
     except ImportError as exc:
         raise PixError("missing_dependency", "Install pix-engine[server]") from exc
     session = Session(path, limits)
-    app = FastAPI(title="Pix Engine", version="0.8.0")
+    app = FastAPI(title="Pix Engine", version="0.9.0")
     if not token:
         app.add_middleware(
             TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver"]
@@ -237,6 +241,30 @@ def create_app(path, *, token=None, limits=None):
             session.render(body.get("variables"), body.get("artboard"), body.get("comp")),
             media_type="image/png",
         )
+
+    @app.post("/spacing")
+    def spacing(body: dict):
+        return session.measure_spacing(**body)
+
+    @app.get("/pixels/{target}")
+    def pixels(target: str):
+        with session.project() as p:
+            return p.inspect_pixels(target)
+
+    @app.get("/animation")
+    def animation():
+        with session.project() as p:
+            return p.inspect_animation()
+
+    @app.get("/animation/frame/{name}")
+    def animation_frame(name: str, scale: int = 1):
+        import io
+
+        with session.project() as p:
+            image = p.render_frame(name, scale)
+            stream = io.BytesIO()
+            image.save(stream, format="PNG")
+            return Response(stream.getvalue(), media_type="image/png")
 
     @app.post("/measure")
     def measure(body: dict):

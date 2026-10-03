@@ -50,6 +50,7 @@ def check_state(project, state):
                 "adjustment",
                 "pathfinder",
                 "symbol",
+                "pixel",
             ),
             "Invalid layer type",
             "invalid_project",
@@ -66,6 +67,10 @@ def check_state(project, state):
         for key in ("color", "fill", "start", "end", "stroke_color"):
             if key in layer:
                 color(resolve_color(layer[key], state))
+        if layer["type"] == "pixel":
+            from .pixel import validate_pixel
+
+            validate_pixel(layer, state)
         if layer["type"] == "text":
             require(isinstance(layer["text"], str) and len(layer["text"]) <= 100000, "Invalid text")
             finite(layer["size"], "font size", 1, 4096)
@@ -78,6 +83,9 @@ def check_state(project, state):
             if effect.get("selection"):
                 require(effect["selection"] in project.assets, "Missing effect selection", "missing_asset")
     validate_design(project, state)
+    from .animation import validate_animation
+
+    validate_animation(project, state)
     require(not (ids & names), "Layer names cannot collide with IDs", "invalid_project")
     require(
         state["active_layer"] is None or state["active_layer"] in ids,

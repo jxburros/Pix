@@ -70,7 +70,7 @@ class Project:
             return next(x for x in state["layers"] if x["id"] == ident)
         return {
             **state,
-            "version": "0.8.0",
+            "version": "0.9.0",
             "head": self.head,
             "branch": self.current_branch,
             "history_count": len(self.nodes),
@@ -218,6 +218,31 @@ class Project:
 
         return export(self, path, **options)
 
+    def measure_spacing(self, **options):
+        from .spacing import measure_spacing
+
+        return measure_spacing(self, **options)
+
+    def inspect_pixels(self, target=None):
+        from .pixel import inspect_pixels
+
+        return inspect_pixels(self, target)
+
+    def inspect_animation(self):
+        from .animation import inspect_animation
+
+        return inspect_animation(self)
+
+    def render_frame(self, name, scale=1):
+        from .animation import render_frame
+
+        return render_frame(self, name, scale)
+
+    def export_animation(self, path, **options):
+        from .animation import export_animation
+
+        return export_animation(self, path, **options)
+
     def measure(self, **options):
         from .measure import measure
 
@@ -236,7 +261,7 @@ class Project:
     def manifest(self):
         return {
             "format_version": 1,
-            "pix_version": "0.8.0",
+            "pix_version": "0.9.0",
             "state": self.state,
             "nodes": self.nodes,
             "head": self.head,

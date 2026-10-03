@@ -1,5 +1,7 @@
 # Operations and document semantics
 
+See [spacing checks and pixel animation](pixel-animation-spacing.md) for the 0.9.0 tools and API examples.
+
 See [design tools and template production](design-tools.md) for groups, clipping, shapes, styles, artboards, CSV rendering, measurements, and the other design operations.
 
 `pix schema` or REST `GET /schema` returns the full Draft 2020-12 JSON Schema. MCP exposes the same schema at `pix://operations`. Every editing operation is schema-checked before I/O, then validated against the document and resource limits.

@@ -12,7 +12,7 @@ This initial implementation covers the specification's core editor and automatio
 
 ## Install on Windows
 
-Download **Pix-Setup-0.8.0-windows-x64.exe** from [GitHub Releases](https://github.com/jxburros/Pix/releases/latest) and run it. The installer bundles Python and the REST/MCP dependencies, installs for your Windows account without administrator access, and adds `pix` to your user PATH. Completely close and reopen your terminal application after installation:
+Download **Pix-Setup-0.9.0-windows-x64.exe** from [GitHub Releases](https://github.com/jxburros/Pix/releases/latest) and run it. The installer bundles Python and the REST/MCP dependencies, installs for your Windows account without administrator access, and adds `pix` to your user PATH. Completely close and reopen your terminal application after installation:
 
 ```text
 pix --version
@@ -101,6 +101,24 @@ pix info --target title
 [Design tool reference](docs/design-tools.md) covers every new operation, richer gradients,
 adjustment layers, automatic corrections, LUTs, comps, text layout, guides, pathfinder,
 symbols, provider-backed editing tools, and their precise limits.
+
+## Spacing checks, pixel art and animation
+
+```bash
+pix spacing --around body --before heading --after footer --tolerance 1 --check
+pix pixel-art --name sprite --width 16 --height 16
+pix pixel-draw sprite rect 4 4 --width 8 --height 8 --color '#'
+pix frame-save idle --duration 100
+pix pixel-draw sprite pixel 5 5 --color .
+pix frame-save blink --duration 100
+pix export-animation --out sprite.gif --scale 8
+pix export-animation --out sprite-sheet.png --format sheet
+```
+
+Spacing analysis checks only the intent and objects you specify. Pixel sprites use compact
+character grids and palettes that agents can inspect directly; named frames preserve edits
+and timing. [Spacing and pixel-animation reference](docs/pixel-animation-spacing.md)
+documents CLI/Python/REST/MCP workflows, crisp scaling, GIF/APNG and game sprite sheets.
 
 ## Automation and creative history
 
@@ -196,6 +214,7 @@ pytest -q
 python -m pip wheel . --no-deps --wheel-dir dist
 ```
 
+- [Spacing checks, pixel art and animation](docs/pixel-animation-spacing.md)
 - [Design tools and template production](docs/design-tools.md)
 - [Command reference](docs/commands.md)
 - [Operation format and document semantics](docs/operations.md)
@@ -204,4 +223,4 @@ python -m pip wheel . --no-deps --wheel-dir dist
 - [Architecture, security, and limits](docs/architecture.md)
 - [Specification coverage and known limitations](docs/coverage.md)
 
-This is an RGBA8 raster engine, not a GIMP file-format implementation. CMYK, RAW development, SVG/vector editing, brushes, animation, desktop GUI/TUI, and GIMP/Photoshop project compatibility are outside this implementation. AI adapter contracts are tested offline; live providers require your own service, model, workflow, and credentials.
+This is an RGBA8 raster engine, not a GIMP file-format implementation. CMYK, RAW development, SVG/vector editing, brushes, full animation timelines, desktop GUI/TUI, and GIMP/Photoshop project compatibility are outside this implementation. AI adapter contracts are tested offline; live providers require your own service, model, workflow, and credentials.

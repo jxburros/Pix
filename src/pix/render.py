@@ -359,6 +359,10 @@ def layer_image(project, layer, bounds):
         from .design_render import special_image
 
         image = special_image(project, layer)
+    elif kind == "pixel":
+        from .pixel import pixel_image
+
+        image = pixel_image(project, layer)
     elif kind == "raster":
         if linked:
             require(
@@ -387,13 +391,20 @@ def layer_image(project, layer, bounds):
     else:
         raise PixError("invalid_layer", f"Unsupported layer type: {kind}")
     if not layer.get("repeat"):
-        image = image.resize((layer["width"], layer["height"]), Image.Resampling.LANCZOS)
+        image = image.resize(
+            (layer["width"], layer["height"]),
+            Image.Resampling.NEAREST if kind == "pixel" else Image.Resampling.LANCZOS,
+        )
     if layer.get("flip_x"):
         image = ImageOps.mirror(image)
     if layer.get("flip_y"):
         image = ImageOps.flip(image)
     if layer.get("rotation", 0) % 360:
-        image = image.rotate(-layer["rotation"], Image.Resampling.BICUBIC, expand=True)
+        image = image.rotate(
+            -layer["rotation"],
+            Image.Resampling.NEAREST if kind == "pixel" else Image.Resampling.BICUBIC,
+            expand=True,
+        )
         # Match conservative layout bounds consistently.
         if image.size != tuple(bounds[2:]):
             padded = Image.new("RGBA", tuple(bounds[2:]))
@@ -549,7 +560,10 @@ def export(
     background="white",
     artboard=None,
     comp=None,
+    sampling="smooth",
 ):
+    require(sampling in ("smooth", "nearest"), "Sampling must be smooth or nearest")
+    resample = Image.Resampling.NEAREST if sampling == "nearest" else Image.Resampling.LANCZOS
     require(path is None or Path(path).suffix.lower() != ".pix", "Cannot export over a Pix project")
     finite(scale, "scale", 0.01, 16)
     finite(quality, "quality", 1, 100)
@@ -560,11 +574,11 @@ def export(
     image = render(project, variables, artboard, comp)
     size = settings.pop("size", None)
     if size:
-        image = ImageOps.contain(image, size, Image.Resampling.LANCZOS)
+        image = ImageOps.contain(image, size, resample)
     target_size = (max(1, round(image.width * scale)), max(1, round(image.height * scale)))
     project.limits.size(*target_size)
     if target_size != image.size:
-        image = image.resize(target_size, Image.Resampling.LANCZOS)
+        image = image.resize(target_size, resample)
     profile_format = settings.pop("format", None)
     fmt = (
         format

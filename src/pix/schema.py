@@ -195,6 +195,9 @@ def operation_schema():
     from .design_schema import schemas
 
     schemas(add)
+    from .pixel_schema import schemas as pixel_schemas
+
+    pixel_schemas(add)
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "title": "Pix operation batch",
